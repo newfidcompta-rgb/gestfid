@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NEW FID - Cabinet Comptable</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<!-- =========================
+       PAGE DE CONNEXION
+       ========================= -->
+  <div id="loginPage" class="login-body">
+    <div class="login-container">
+      <div class="login-header">
+        <div class="login-logo">NF</div>
+        <h1>NEW FID</h1>
+        <p>Cabinet Comptable Agréé</p>
+      </div>
+
+      <div class="login-form">
+        <h2>Connexion</h2>
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="votre@email.com" value="test@newfid.com">
+          </div>
+          <div class="form-group">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" placeholder="Votre mot de passe" value="password">
+          </div>
+          <button type="submit" class="login-btn">Se connecter</button>
+        </form>
+
+        <div class="login-note">
+          <p>Accès ouvert pour le développement - Compte de test pré-rempli</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================
+       APPLICATION
+       ========================= -->
+  <div id="app" class="container" style="display:none;">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="logo-section">
+        <div class="logo">NF</div>
+        <div class="company-info">
+          <h1>NEW FID</h1>
+          <p>Cabinet Comptable Agréé</p>
+        </div>
+      </div>
+
+      <ul class="nav-links">
+        <li><a href="#" class="nav-link active" data-page="dashboard"><i class="fas fa-chart-bar"></i> Tableau de bord</a></li>
+        <li><a href="#" class="nav-link" data-page="clients"><i class="fas fa-users"></i> Clients</a></li>
+        <li><a href="#" class="nav-link" data-page="declarations"><i class="fas fa-file-contract"></i> Déclarations</a></li>
+        <li><a href="#" class="nav-link" data-page="codes"><i class="fas fa-code"></i> Codes</a></li>
+        <li><a href="#" class="nav-link" data-page="honoraires"><i class="fas fa-credit-card"></i> Honoraires</a></li>
+        <li><a href="#" class="nav-link" data-page="situation-globale"><i class="fas fa-file"></i> Situation des paiements</a></li>
+        <li><a href="#" class="nav-link" data-page="gestion-utilisateurs"><i class="fas fa-file"></i> Utilisateurs</a></li>
+      </ul>
+
+      <div class="user-section">
+        <div class="user-info">
+          <div class="user-avatar">US</div>
+          <span>Utilisateur</span>
+        </div>
+        <a href="#" class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i></a>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="main-content">
+
+      <!-- =========================
+           DASHBOARD
+           ========================= -->
+      <div id="dashboard" class="page active">
+        <div class="header">
+          <h2>Tableau de bord</h2>
+          <div class="header-actions">
+            <div class="date-display" id="currentDate"></div>
+          </div>
+        </div>
+
+         <div class="stats-grid">
+  <!-- Clients Actifs -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background: var(--primary-color);">
+      <i class="fas fa-users"></i>
+    </div>
+    <div class="stat-info">
+      <h3 id="totalClients">0</h3>
+      <p>Clients actifs</p>
+    </div>
+  </div>
+
+  <!-- Clients à Jour -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background: var(--success-color);">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <div class="stat-info">
+      <h3 id="clientsAJour">0</h3>
+      <p>Clients à jour</p>
+    </div>
+  </div>
+
+  <!-- Total Déclarations du Mois -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background: var(--info-color);">
+      <i class="fas fa-calendar-alt"></i>
+    </div>
+    <div class="stat-info">
+      <h3 id="totalDeclarationsMois">0</h3>
+      <p>Déclarations ce mois</p>
+    </div>
+  </div>
+
+  <!-- Déclarations Déposées -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background: var(--success-color);">
+      <i class="fas fa-file-check"></i>
+    </div>
+    <div class="stat-info">
+      <h3 id="declarationsDeposees">0</h3>
+      <p>Déclarations déposées</p>
+    </div>
+  </div>
+
+  <!-- Restant à Déposer -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background: var(--warning-color);">
+      <i class="fas fa-clock"></i>
+    </div>
+    <div class="stat-info">
+      <h3 id="declarationsRestantes">0</h3>
+      <p>Restant à déposer</p>
+    </div>
+  </div>
+
+  <!-- Tardives de l'Année -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background: var(--error-color);">
+      <i class="fas fa-exclamation-triangle"></i>
+     </div>
+     <div class="stat-info">
+      <h3 id="tardivesAnnee">0</h3>
+      <p>Tardives cette année</p>
+     </div>
+    </div>
+    </div>
+      </div>
+
+      <!-- =========================
+     PAGE CLIENTS AVEC ONGLETS
+     ========================= -->
+<div id="clients" class="page">
+  <div class="header">
+    <h2>Gestion des Clients</h2>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tabs">
+    <div class="tab active" data-tab="consulter">Liste des Clients</div>
+    <div class="tab" data-tab="consulter-un-client">Consulter un Client</div>
+    <div class="tab" data-tab="ajouter">Ajouter un Client</div>
+    <div class="tab" data-tab="modifier">Modifier un Client</div>
+  </div>
+
+  <!-- Onglet Liste Clients  -->
+  <div id="consulter" class="tab-content active">
+    <div class="header-actions" style="margin-bottom: 1rem;">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="Rechercher un client...">
+      </div>
+    </div>
+
+    <div class="clients-table-container">
+      <table class="clients-table">
+        <thead>
+          <tr>
+            <th>Nom / Raison Sociale</th>
+            <th>ICE</th>
+            <th>Ville</th>
+            <th>Contact</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody id="clientsTableBody">
+          <tr><td colspan="5" class="no-data">Chargement des clients...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<!-- Onglet CONSULTER UN CLIENT -->
+<div id="consulter-un-client" class="tab-content">
+  <div class="card">
+    <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+      <h3>Consulter un Client</h3>
+      <button type="button" class="btn-primary" id="btnImprimerFicheClient">
+        <i class="fas fa-file-pdf"></i> Imprimer Fiche Client
+      </button>
+    </div>
+    
+    <!-- Sélection du client -->
+    <div class="form-row" style="margin-bottom: 2rem;">
+      <div class="form-group" style="flex: 1;">
+        <label for="viewClientSelect">Sélectionner le client à consulter</label>
+        <div class="custom-select-wrapper">
+          <div class="custom-select" id="viewClientSelect">
+            <div class="select-selected">Choisir un client...</div>
+            <div class="select-items">
+              <div class="select-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+              </div>
+              <div class="select-options" id="clientOptionsView">
+                <!-- Les options seront ajoutées dynamiquement -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulaire de consultation (non modifiable) -->
+    <div id="viewFormContainer" style="display: none;">
+      <form id="viewClientForm" style="opacity: 0.9;">
+        <!-- Répétez ici tous les mêmes champs que le formulaire d'ajout -->
+       
+        <div class="form-row">
+          <div class="form-group">
+            <label for="viewNom">Nom / Raison Sociale</label>
+            <input type="text" id="viewNom" readonly>
+          </div>
+          <div class="form-group">
+            <label for="viewIce">ICE</label>
+            <input type="text" id="viewIce" readonly>
+          </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+              <label for="viewDateCreation">Date de Création</label>
+              <input type="date" id="viewDateCreation" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewSiegeSocial">Siège Social</label>
+              <input type="text" id="viewSiegeSocial" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewVille">Ville</label>
+              <input type="text" id="viewVille" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewActivite">Activité</label>
+              <input type="text" id="viewActivite" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewIdentifiantFiscal">Identifiant Fiscal</label>
+              <input type="text" id="viewIdentifiantFiscal" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewTaxeProfessionnelle">Taxe Professionnelle</label>
+              <input type="text" id="viewTaxeProfessionnelle" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewRegistreCommerce">Registre de Commerce</label>
+              <input type="text" id="viewRegistreCommerce" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewCnss">CNSS</label>
+              <input type="text" id="viewCnss" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewRib">RIB</label>
+              <input type="text" id="viewRib" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewEmail">Email</label>
+              <input type="email" id="viewEmail" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewNomGerant">Nom du Gérant</label>
+              <input type="text" id="viewNomGerant" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewCinGerant">CIN du Gérant</label>
+              <input type="text" id="viewCinGerant" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewAdresseGerant">Adresse du Gérant</label>
+              <input type="text" id="viewAdresseGerant" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewDateNaissance">Date de Naissance</label>
+              <input type="date" id="viewDateNaissance" readonly>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="viewContact">Contact</label>
+              <input type="text" id="viewContact" readonly>
+            </div>
+            <div class="form-group">
+              <label for="viewCodeClient">Code Client</label>
+              <input type="text" id="viewCodeClient" readonly>
+            </div>
+          </div>
+        </form>
+      
+      <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+        <i class="fas fa-info-circle" style="color: var(--info-color); margin-right: 0.5rem;"></i>
+        <span style="color: var(--text-secondary); font-size: 0.875rem;">
+          Double-cliquez sur un champ pour copier son contenu
+        </span>      
+      </div>
+    </div>
+
+    <!-- Message quand aucun client sélectionné -->
+    <div id="viewPlaceholder" class="no-data" style="text-align: center; padding: 3rem;">
+      <i class="fas fa-search" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+      <h3>Sélectionnez un client</h3>
+      <p>Veuillez choisir un client dans la liste déroulante pour consulter ses informations</p>
+    </div>
+  </div>
+</div>
+
+  <!-- Onglet AJOUTER -->
+  <div id="ajouter" class="tab-content">
+    <div class="card">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+        <h3>Nouveau Client</h3>
+      </div>
+      <div class="modal-body">
+        <form id="addClientForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addNom">Nom / Raison Sociale *</label>
+              <input type="text" id="addNom" required>
+            </div>
+            <div class="form-group">
+              <label for="addIce">ICE *</label>
+              <input type="text" id="addIce" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addDateCreation">Date de Création</label>
+              <input type="date" id="addDateCreation">
+            </div>
+            <div class="form-group">
+              <label for="addSiegeSocial">Siège Social</label>
+              <input type="text" id="addSiegeSocial">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addVille">Ville</label>
+              <input type="text" id="addVille">
+            </div>
+            <div class="form-group">
+              <label for="addActivite">Activité</label>
+              <input type="text" id="addActivite">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addIdentifiantFiscal">Identifiant Fiscal</label>
+              <input type="text" id="addIdentifiantFiscal">
+            </div>
+            <div class="form-group">
+              <label for="addTaxeProfessionnelle">Taxe Professionnelle</label>
+              <input type="text" id="addTaxeProfessionnelle">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addRegistreCommerce">Registre de Commerce</label>
+              <input type="text" id="addRegistreCommerce">
+            </div>
+            <div class="form-group">
+              <label for="addCnss">CNSS</label>
+              <input type="text" id="addCnss">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addRib">RIB</label>
+              <input type="text" id="addRib">
+            </div>
+            <div class="form-group">
+              <label for="addEmail">Email</label>
+              <input type="email" id="addEmail">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addNomGerant">Nom du Gérant</label>
+              <input type="text" id="addNomGerant">
+            </div>
+            <div class="form-group">
+              <label for="addCinGerant">CIN du Gérant</label>
+              <input type="text" id="addCinGerant">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addAdresseGerant">Adresse du Gérant</label>
+              <input type="text" id="addAdresseGerant">
+            </div>
+            <div class="form-group">
+              <label for="addDateNaissance">Date de Naissance</label>
+              <input type="date" id="addDateNaissance">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addContact">Contact</label>
+              <input type="text" id="addContact">
+            </div>
+            <div class="form-group">
+              <label for="addCodeClient">Code Client</label>
+              <input type="text" id="addCodeClient">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="reset" class="btn-secondary">Annuler</button>
+            <button type="submit" class="btn-primary">Enregistrer le Client</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onglet MODIFIER -->
+  <div id="modifier" class="tab-content">
+    <div class="card">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+        <h3>Modifier un Client</h3>
+      </div>
+      
+      <!-- Sélection du client à modifier -->
+      <div class="form-row" style="margin-bottom: 2rem;">
+        <div class="form-group" style="flex: 1;">
+          <label for="editClientSelect">Sélectionner le client à modifier</label>
+          <div class="custom-select-wrapper">
+            <div class="custom-select" id="editClientSelect">
+              <div class="select-selected">Choisir un client...</div>
+              <div class="select-items">
+                <div class="select-search">
+                  <i class="fas fa-search"></i>
+                  <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+                </div>
+                <div class="select-options" id="clientOptionsEdit">
+                  <!-- Les options seront ajoutées dynamiquement -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulaire de modification -->
+      <div id="editFormContainer" style="display: none;">
+        <form id="editClientForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editNom">Nom / Raison Sociale *</label>
+              <input type="text" id="editNom" required>
+            </div>
+            <div class="form-group">
+              <label for="editIce">ICE *</label>
+              <input type="text" id="editIce" required>
+            </div>
+          </div>
+
+          <!-- Répéter tous les champs comme dans le formulaire d'ajout avec les préfixes "edit" -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editDateCreation">Date de Création</label>
+              <input type="date" id="editDateCreation">
+            </div>
+            <div class="form-group">
+              <label for="editSiegeSocial">Siège Social</label>
+              <input type="text" id="editSiegeSocial">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editVille">Ville</label>
+              <input type="text" id="editVille">
+            </div>
+            <div class="form-group">
+              <label for="editActivite">Activité</label>
+              <input type="text" id="editActivite">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editIdentifiantFiscal">Identifiant Fiscal</label>
+              <input type="text" id="editIdentifiantFiscal">
+            </div>
+            <div class="form-group">
+              <label for="editTaxeProfessionnelle">Taxe Professionnelle</label>
+              <input type="text" id="editTaxeProfessionnelle">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editRegistreCommerce">Registre de Commerce</label>
+              <input type="text" id="editRegistreCommerce">
+            </div>
+            <div class="form-group">
+              <label for="editCnss">CNSS</label>
+              <input type="text" id="editCnss">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editRib">RIB</label>
+              <input type="text" id="editRib">
+            </div>
+            <div class="form-group">
+              <label for="editEmail">Email</label>
+              <input type="email" id="editEmail">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editNomGerant">Nom du Gérant</label>
+              <input type="text" id="editNomGerant">
+            </div>
+            <div class="form-group">
+              <label for="editCinGerant">CIN du Gérant</label>
+              <input type="text" id="editCinGerant">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editAdresseGerant">Adresse du Gérant</label>
+              <input type="text" id="editAdresseGerant">
+            </div>
+            <div class="form-group">
+              <label for="editDateNaissance">Date de Naissance</label>
+              <input type="date" id="editDateNaissance">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editContact">Contact</label>
+              <input type="text" id="editContact">
+            </div>
+            <div class="form-group">
+              <label for="editCodeClient">Code Client</label>
+              <input type="text" id="editCodeClient">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="cancelEdit()">Annuler</button>
+            <button type="submit" class="btn-primary">Mettre à jour le Client</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Message quand aucun client sélectionné -->
+      <div id="editPlaceholder" class="no-data" style="text-align: center; padding: 3rem;">
+        <i class="fas fa-user-edit" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+        <h3>Sélectionnez un client</h3>
+        <p>Veuillez choisir un client dans la liste déroulante pour modifier ses informations</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+      <!-- =========================
+           PAGE DÉCLARATIONS
+           ========================= -->
+      <div id="declarations" class="page">
+        <div class="header">
+          <h2>Gestion des Déclarations</h2>
+          <div class="header-actions">
+            <select id="anneeSelection" class="form-group">
+              <option value="2025">2025</option>
+              <option value="2024">2024</option>
+              <option value="2026">2026</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" data-tab="catalogue">Catalogue Déclarations</div>
+          <div class="tab" data-tab="affectation">Affectation Clients</div>
+          <div class="tab" data-tab="echeances">Calendrier Échéances</div>
+        </div>
+
+        <!-- Catalogue -->
+        <div id="catalogue" class="tab-content active">
+          <div class="declarations-table-container">
+            <table class="clients-table">
+              <thead>
+                <tr>
+                  <th>Type Déclaration</th>
+                  <th>Nom Déclaration</th>
+                  <th>Périodicité</th>
+                  <th>Date Début</th>
+                  <th>Date Fin</th>
+                </tr>
+              </thead>
+              <tbody id="catalogueTableBody">
+                <tr><td colspan="6" class="no-data">Chargement du catalogue...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Affectation -->
+        <div id="affectation" class="tab-content">
+          <div class="checklist-container">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="clientSelection">Sélectionner un client</label>
+                <div class="custom-select-wrapper">
+                  <div class="custom-select" id="clientSelection">
+                    <div class="select-selected">Choisir un client...</div>
+                    <div class="select-items">
+                      <div class="select-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+                      </div>
+                      <div class="select-options" id="clientOptionsAffectation">
+                        <!-- Les options seront ajoutées dynamiquement -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="anneeAffectation">Exercice comptable</label>
+                <select id="anneeAffectation">
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="2026">2026</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="checklistContent" style="margin-top:2rem;">
+              <div class="no-data">Sélectionnez un client pour voir ses déclarations</div>
+            </div>
+
+            <div class="form-actions" style="margin-top:2rem; border-top:1px solid var(--border-color); padding-top:1.5rem;">
+              <button class="btn-primary" id="affecterDeclarationsBtn" style="display:none;">
+                <i class="fas fa-save"></i> Affecter ces déclarations
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Échéances -->
+        <div id="echeances" class="tab-content">
+          <div class="header-actions" style="margin-bottom:1rem;">
+            <select id="filtreEtat" class="form-group">
+              <option value="tous">Tous les états</option>
+              <option value="non_exigible">Non exigible</option>
+              <option value="en_cours">En cours</option>
+              <option value="tardive">Tardive</option>
+              <option value="deposee">Déposée</option>
+              <option value="payee">Payée</option>
+            </select>
+            <div class="form-group">
+              <label for="filtreClient">Filtrer par client</label>
+              <div class="custom-select-wrapper">
+                <div class="custom-select" id="filtreClient">
+                  <div class="select-selected">Tous les clients</div>
+                  <div class="select-items">
+                    <div class="select-search">
+                      <i class="fas fa-search"></i>
+                      <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+                    </div>
+                    <div class="select-options" id="clientOptionsEcheances">
+                      <!-- Les options seront ajoutées dynamiquement -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="declarations-table-container">
+            <table class="clients-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Nom de la déclaration</th>
+                  <th>Échéance</th>
+                  <th>État</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="echeancesTableBody">
+                <tr><td colspan="5" class="no-data">Aucune échéance générée</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================
+           PAGE HONORAIRES
+           ========================= -->
+      <div id="honoraires" class="page">
+        <div class="header">
+          <h2>Honoraires</h2>
+
+          <div class="header-actions honoraires-header">
+            <div class="honos-search custom-select-wrapper">
+              <div class="custom-select" id="honorairesClientSelect">
+                <div class="select-selected">Sélectionner un client…</div>
+                <div class="select-items">
+                  <div class="select-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Rechercher un client (nom, ICE)…" class="select-search-input">
+                  </div>
+                  <div class="select-options" id="clientOptionsHonoraires">
+                    <!-- Les options seront ajoutées dynamiquement -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <select id="honorairesExerciceSelect" class="honos-select">
+              <option value="2024">2024</option>
+              <option value="2025" selected>2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Onglets -->
+        <div class="tabs honoraires-tabs">
+          <div class="tab active" data-tab="honos-facturations">Facturations</div>
+          <div class="tab" data-tab="honos-paiements">Paiements</div>
+          <div class="tab" data-tab="honos-situation">Situation</div>
+        </div>
+
+        <!-- FACTURATIONS -->
+        <div id="honos-facturations" class="tab-content active">
+          <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+            <button id="btnFacturerService" class="btn-primary">
+              <i class="fas fa-plus"></i> Facturer un service
+            </button>
+          </div>
+          <div class="card">
+            <table class="clients-table table-min">
+              <thead>
+                <tr>
+                  <th style="width:130px">Date</th>
+                  <th>Service (saisie libre)</th>
+                  <th style="width:110px">Exercice</th>
+                  <th style="width:150px">Montant (DH)</th>
+                  <th style="width:130px">Action</th>
+                </tr>
+              </thead>
+              <tbody id="factuTbody">
+                <tr><td colspan="5" class="no-data">Aucune facturation</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PAIEMENTS -->
+        <div id="honos-paiements" class="tab-content">
+          <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+            <button id="btnAjouterPaiement" class="btn-success">
+              <i class="fas fa-money-bill"></i> Ajouter un paiement
+            </button>
+          </div>
+          <div class="card">
+            <table class="clients-table table-min">
+              <thead>
+                <tr>
+                  <th style="width:130px">Date</th>
+                  <th style="width:160px">Mode</th>
+                  <th>Référence</th>
+                  <th style="width:150px">Montant (DH)</th>
+                  <th style="width:130px">Action</th>
+                </tr>
+              </thead>
+              <tbody id="payTbody">
+                <tr><td colspan="5" class="no-data">Aucun paiement</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SITUATION -->
+        <div id="honos-situation" class="tab-content">
+          <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+            <button id="btnImprimerSituation" class="btn-primary">
+              <i class="fas fa-print"></i> Imprimer la situation
+            </button>
+          </div>
+          <div class="honos-split">
+            <div class="card">
+              <h4 class="honos-card-title">Services facturés</h4>
+              <table class="clients-table table-min">
+                <thead>
+                  <tr>
+                    <th style="width:130px">Date</th>
+                    <th>Libellé</th>
+                    <th style="width:150px">Montant (DH)</th>
+                  </tr>
+                </thead>
+                <tbody id="sitFactuTbody">
+                  <tr><td colspan="3" class="no-data">Aucune donnée</td></tr>
+                </tbody>
+            </table>
+            </div>
+
+            <div class="card">
+              <h4 class="honos-card-title">Paiements</h4>
+              <table class="clients-table table-min">
+                <thead>
+                  <tr>
+                    <th style="width:130px">Date</th>
+                    <th>Référence</th>
+                    <th style="width:150px">Montant (DH)</th>
+                  </tr>
+                </thead>
+                <tbody id="sitPayTbody">
+                  <tr><td colspan="3" class="no-data">Aucune donnée</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="honos-totaux">
+            <div><strong>Total services :</strong> <span id="sitTotalServices">0</span> DH</div>
+            <div><strong>Total paiements :</strong> <span id="sitTotalPaiements">0</span> DH</div>
+            <div><strong>Report (N-1) :</strong> <span id="sitReport">0</span> DH</div>
+            <div><strong>Solde exercice :</strong> <span id="sitSolde">0</span> DH</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================
+           SITUATION GLOBALE
+           ========================= -->
+      <div id="situation-globale" class="page">
+        <div class="header">
+          <h2>Situation Globale des Paiements</h2>
+          <div class="header-actions">
+            <select id="globalExerciceSelect" class="form-group">
+              <option value="2024">2024</option>
+              <option value="2025" selected>2025</option>
+              <option value="2026">2026</option>
+            </select>
+            <button class="btn-primary" id="exportSituationBtn">
+              <i class="fas fa-download"></i> Exporter Excel
+            </button>
+          </div>
+        </div>
+
+        <!-- Résumé Chiffré -->
+        <div class="stats-grid" style="margin-bottom: 2rem;">
+          <div class="stat-card">
+            <div class="stat-icon" style="background: var(--primary-color);">
+              <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="totalClientsGlobale">0</h3>
+              <p>Clients Actifs</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: var(--success-color);">
+              <i class="fas fa-money-bill-wave"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="totalFactureGlobale">0</h3>
+              <p>Total Facturé (DH)</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: var(--info-color);">
+              <i class="fas fa-hand-holding-usd"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="totalPayeGlobale">0</h3>
+              <p>Total Payé (DH)</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: var(--warning-color);">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-info">
+              <h3 id="totalRestantGlobale">0</h3>
+              <p>Reste à Payer (DH)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtres -->
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="filtreStatut">Filtrer par statut</label>
+              <select id="filtreStatut" class="form-group">
+                <option value="tous">Tous les statuts</option>
+                <option value="a_jour">À jour</option>
+                <option value="en_retard">En retard</option>
+                <option value="impaye">Impayé</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="filtreMontant">Filtrer par montant</label>
+              <select id="filtreMontant" class="form-group">
+                <option value="tous">Tous les montants</option>
+                <option value="0-5000">0 - 5,000 DH</option>
+                <option value="5000-20000">5,000 - 20,000 DH</option>
+                <option value="20000+">+20,000 DH</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="rechercheGlobale">Recherche</label>
+              <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="rechercheGlobale" placeholder="Nom client, ICE...">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tableau Synthétique -->
+        <div class="card">
+          <div class="clients-table-container">
+            <table class="clients-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>ICE</th>
+                  <th>Total Facturé (DH)</th>
+                  <th>Total Payé (DH)</th>
+                  <th>Reste à Payer (DH)</th>
+                  <th>Statut</th>
+                  <th>Dernier Paiement</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="situationGlobaleTableBody">
+                <tr><td colspan="8" class="no-data">Chargement des données...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Graphiques -->
+        <div class="form-row" style="margin-top: 2rem;">
+          <div class="card" style="flex: 1;">
+            <h4 style="margin-bottom: 1rem;">Répartition par Statut</h4>
+            <div id="chartStatut" style="height: 300px; display: flex; align-items: center; justify-content: center;">
+              <!-- Graphique sera généré dynamiquement -->
+            </div>
+          </div>
+          <div class="card" style="flex: 1;">
+            <h4 style="margin-bottom: 1rem;">Top 10 Clients</h4>
+            <div id="chartTopClients" style="height: 300px; display: flex; align-items: center; justify-content: center;">
+              <!-- Graphique sera généré dynamiquement -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+<!-- =========================
+     PAGE CODES - NOUVELLE VERSION
+     ========================= -->
+<div id="codes" class="page">
+  <div class="header">
+    <h2>Gestion des Codes d'Accès</h2>
+  </div>
+
+  <!-- Onglets principaux -->
+  <div class="tabs">
+    <div class="tab active" data-tab="afficher-codes">Afficher & Copier</div>
+    <div class="tab" data-tab="ajouter-codes">Ajouter un Code</div>
+  </div>
+
+  <!-- =========================
+       ONGLET 1 : AFFICHER & COPIER
+       ========================= -->
+  <div id="afficher-codes" class="tab-content active">
+    <!-- Filtre client -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="form-row">
+        <div class="form-group" style="flex: 1;">
+          <label for="filtreClientCodes">
+            <i class="fas fa-user" style="margin-right: 0.5rem;"></i>
+            Sélectionner un client
+          </label>
+          <div class="custom-select-wrapper">
+            <div class="custom-select" id="filtreClientCodes">
+              <div class="select-selected">Choisir un client...</div>
+              <div class="select-items">
+                <div class="select-search">
+                  <i class="fas fa-search"></i>
+                  <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+                </div>
+                <div class="select-options" id="clientOptionsFiltre">
+                  <!-- Options dynamiques -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Bouton modification -->
+        <div class="form-group" style="display: flex; align-items: flex-end;">
+          <button id="btnModifierCodes" class="btn-primary" disabled>
+            <i class="fas fa-edit"></i> Modifier les Codes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Affichage des codes -->
+    <div id="affichageCodesContainer">
+      <div class="no-data-card">
+        <i class="fas fa-hand-pointer" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+        <h3>Sélectionnez un client</h3>
+        <p>Veuillez choisir un client dans la liste déroulante pour afficher ses codes d'accès</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================
+       ONGLET 2 : AJOUTER UN CODE
+       ========================= -->
+  <div id="ajouter-codes" class="tab-content">
+    <div class="card">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+        <h3>Ajouter / Modifier les Codes d'Accès</h3>
+      </div>
+
+      <!-- Sélection client -->
+      <div class="form-row" style="margin-bottom: 2rem;">
+        <div class="form-group" style="flex: 1;">
+          <label for="ajoutClientSelect">Sélectionner le client</label>
+          <div class="custom-select-wrapper">
+            <div class="custom-select" id="ajoutClientSelect">
+              <div class="select-selected">Choisir un client...</div>
+              <div class="select-items">
+                <div class="select-search">
+                  <i class="fas fa-search"></i>
+                  <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+                </div>
+                <div class="select-options" id="clientOptionsAjout">
+                  <!-- Options dynamiques -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message client existant -->
+      <div id="messageClientExistant" class="alert-message" style="display: none;">
+        <i class="fas fa-info-circle"></i>
+        <span>Ce client possède déjà des codes enregistrés. Vous allez modifier ses codes existants.</span>
+      </div>
+
+      <!-- Formulaire des codes -->
+      <form id="formCodesClient">
+        <!-- Service SIMPL -->
+        <div class="service-section">
+          <h4 class="service-title">
+            <i class="fas fa-building" style="margin-right: 0.5rem;"></i>
+            SIMPL
+          </h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="simpl_mdp_adhesion">Mot de passe Adhésion</label>
+              <input type="text" id="simpl_mdp_adhesion" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="simpl_login">Login</label>
+              <input type="text" id="simpl_login" class="copiable-field">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="simpl_mot_de_passe">Mot de passe</label>
+              <input type="text" id="simpl_mot_de_passe" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="simpl_email">Email</label>
+              <input type="email" id="simpl_email" class="copiable-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- Service DAMANCOM -->
+        <div class="service-section">
+          <h4 class="service-title">
+            <i class="fas fa-cloud" style="margin-right: 0.5rem;"></i>
+            DAMANCOM
+          </h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="damancom_login">Login</label>
+              <input type="text" id="damancom_login" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="damancom_mot_de_passe">Mot de passe</label>
+              <input type="text" id="damancom_mot_de_passe" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="damancom_email">Email</label>
+              <input type="email" id="damancom_email" class="copiable-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- Service BARID E-SIGN -->
+        <div class="service-section">
+          <h4 class="service-title">
+            <i class="fas fa-signature" style="margin-right: 0.5rem;"></i>
+            BARID E-SIGN
+          </h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="barid_login">Login</label>
+              <input type="text" id="barid_login" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="barid_mot_de_passe">Mot de passe</label>
+              <input type="text" id="barid_mot_de_passe" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="barid_email">Email</label>
+              <input type="email" id="barid_email" class="copiable-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- Service EMAIL -->
+        <div class="service-section">
+          <h4 class="service-title">
+            <i class="fas fa-envelope" style="margin-right: 0.5rem;"></i>
+            EMAIL
+          </h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email_login">Login (adresse email)</label>
+              <input type="email" id="email_login" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="email_mot_de_passe">Mot de passe</label>
+              <input type="text" id="email_mot_de_passe" class="copiable-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- Service MARCHE PUBLIQUE -->
+        <div class="service-section">
+          <h4 class="service-title">
+            <i class="fas fa-gavel" style="margin-right: 0.5rem;"></i>
+            MARCHÉ PUBLIQUE
+          </h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="marche_login">Login</label>
+              <input type="text" id="marche_login" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="marche_mot_de_passe">Mot de passe</label>
+              <input type="text" id="marche_mot_de_passe" class="copiable-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- Service ANAPEC -->
+        <div class="service-section">
+          <h4 class="service-title">
+            <i class="fas fa-briefcase" style="margin-right: 0.5rem;"></i>
+            ANAPEC
+          </h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="anapec_login">Login</label>
+              <input type="text" id="anapec_login" class="copiable-field">
+            </div>
+            <div class="form-group">
+              <label for="anapec_mot_de_passe">Mot de passe</label>
+              <input type="text" id="anapec_mot_de_passe" class="copiable-field">
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions du formulaire -->
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="btnAnnulerCodes">Annuler</button>
+          <button type="submit" class="btn-primary" id="btnEnregistrerCodes">Enregistrer les Codes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- =========================
+     PAGE GESTION UTILISATEURS
+     ========================= -->
+<div id="gestion-utilisateurs" class="page">
+  <div class="header">
+    <h2>Gestion des Utilisateurs</h2>
+    <div class="header-actions">
+      <div class="user-info" style="display: flex; align-items: center; gap: 1rem;">
+        <div style="text-align: right;">
+          <div style="font-weight: 600; color: var(--text-primary);" id="currentUserName"></div>
+          <div style="font-size: 0.875rem; color: var(--text-secondary);" id="currentUserRole"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tabs">
+    <div class="tab active" data-tab="liste-utilisateurs">Liste des Utilisateurs</div>
+    <div class="tab" data-tab="ajouter-utilisateur">Ajouter un Utilisateur</div>
+    <div class="tab admin-only" data-tab="historique-activites">Historique des Activités</div>
+  </div>
+
+  <!-- =========================
+       ONGLET 1 : LISTE UTILISATEURS
+       ========================= -->
+  <div id="liste-utilisateurs" class="tab-content active">
+    <div class="card">
+      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0; color: var(--text-primary);">Utilisateurs de l'application</h3>
+        <div style="font-size: 0.875rem; color: var(--text-secondary);">
+          <span id="countActiveUsers">0</span> utilisateurs actifs
+        </div>
+      </div>
+
+      <div class="clients-table-container">
+        <table class="clients-table">
+          <thead>
+            <tr>
+              <th>Nom Complet</th>
+              <th>Email</th>
+              <th>Rôle</th>
+              <th>Dernière Connexion</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="6" class="no-data">Chargement des utilisateurs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================
+       ONGLET 2 : AJOUTER UTILISATEUR
+       ========================= -->
+  <div id="ajouter-utilisateur" class="tab-content">
+    <div class="card">
+      <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+        <h3>Nouvel Utilisateur</h3>
+      </div>
+
+      <form id="formAddUser">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newUserNom">Nom Complet *</label>
+            <input type="text" id="newUserNom" required>
+          </div>
+          <div class="form-group">
+            <label for="newUserEmail">Email *</label>
+            <input type="email" id="newUserEmail" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newUserRole">Rôle *</label>
+            <select id="newUserRole" required>
+              <option value="collaborateur">Collaborateur</option>
+              <option value="admin">Administrateur</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newUserPassword">Mot de passe temporaire *</label>
+            <div style="position: relative;">
+              <input type="text" id="newUserPassword" value="Temp123!" required readonly style="background: #f8fafc;">
+              <button type="button" class="btn-secondary" onclick="generatePassword()" style="position: absolute; right: 0; top: 0; height: 100%; border-radius: 0 8px 8px 0;">
+                <i class="fas fa-redo"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert-message">
+          <i class="fas fa-info-circle"></i>
+          <span>L'utilisateur devra changer son mot de passe à sa première connexion</span>
+        </div>
+
+        <div class="form-actions">
+          <button type="reset" class="btn-secondary">Annuler</button>
+          <button type="submit" class="btn-primary">Créer l'Utilisateur</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================
+       ONGLET 3 : HISTORIQUE ACTIVITÉS
+       ========================= -->
+  <div id="historique-activites" class="tab-content">
+    <div class="card">
+      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0; color: var(--text-primary);">Historique des Activités</h3>
+        <div class="header-actions">
+          <select id="filterUserActivity" class="form-group">
+            <option value="tous">Tous les utilisateurs</option>
+          </select>
+          <select id="filterActionType" class="form-group">
+            <option value="tous">Toutes les actions</option>
+            <option value="connexion">Connexions</option>
+            <option value="creation">Créations</option>
+            <option value="modification">Modifications</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="clients-table-container">
+        <table class="clients-table">
+          <thead>
+            <tr>
+              <th>Date/Heure</th>
+              <th>Utilisateur</th>
+              <th>Action</th>
+              <th>Page</th>
+              <th>Détails</th>
+            </tr>
+          </thead>
+          <tbody id="activityTableBody">
+            <tr><td colspan="5" class="no-data">Chargement de l'historique...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>
