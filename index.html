@@ -27,7 +27,7 @@
         <form id="loginForm">
           <div class="form-group">
             <label for="email">Email</label>
-            <input type="email" id="email" placeholder="votre@email.com" value="test@newfid.com">
+            <input type="email" id="email" placeholder="votre@email.com" value="@newfid.com">
           </div>
           <div class="form-group">
             <label for="password">Mot de passe</label>
@@ -624,13 +624,6 @@
       <div id="declarations" class="page">
         <div class="header">
           <h2>Gestion des Déclarations</h2>
-          <div class="header-actions">
-            <select id="anneeSelection" class="form-group">
-              <option value="2025">2025</option>
-              <option value="2024">2024</option>
-              <option value="2026">2026</option>
-            </select>
-          </div>
         </div>
 
         <div class="tabs">
@@ -706,7 +699,7 @@
         <div id="echeances" class="tab-content">
           <div class="header-actions" style="margin-bottom:1rem;">
             <select id="filtreEtat" class="form-group">
-              <option value="tous">Tous les états</option>
+              <option value="tous"> Filtrer par état</option>
               <option value="non_exigible">Non exigible</option>
               <option value="en_cours">En cours</option>
               <option value="tardive">Tardive</option>
@@ -714,10 +707,9 @@
               <option value="payee">Payée</option>
             </select>
             <div class="form-group">
-              <label for="filtreClient">Filtrer par client</label>
-              <div class="custom-select-wrapper">
+                <div class="custom-select-wrapper">
                 <div class="custom-select" id="filtreClient">
-                  <div class="select-selected">Tous les clients</div>
+                  <div class="select-selected">Filtrer par client </div>
                   <div class="select-items">
                     <div class="select-search">
                       <i class="fas fa-search"></i>
@@ -730,7 +722,15 @@
                 </div>
               </div>
             </div>
-          </div>
+              <div class="form-group">
+                <select id="anneeSelection">
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+                <option value="2024">2024</option>
+                </select>
+             </div>
+            </div>
 
           <div class="declarations-table-container">
             <table class="clients-table">
@@ -1332,7 +1332,7 @@
           <div class="form-group">
             <label for="newUserRole">Rôle *</label>
             <select id="newUserRole" required>
-              <option value="collaborateur">Collaborateur</option>
+              <option value="Utilisateur">Utilisateur</option>
               <option value="admin">Administrateur</option>
             </select>
           </div>

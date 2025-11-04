@@ -638,13 +638,13 @@ async function initializeApp(){
    NAV - AVEC GESTION DES RÔLES
    ========================= */
 function setupNav(){
-  // MASQUER LES PAGES SENSIBLES POUR LES COLLABORATEURS
+  // MASQUER LES PAGES SENSIBLES POUR LES utilisateurS
   const pagesRestreintes = ['gestion-utilisateurs', 'situation-globale'];
   
   document.querySelectorAll('.nav-link').forEach(link => {
     const page = link.getAttribute('data-page');
     
-    // Masquer les pages restreintes aux collaborateurs
+    // Masquer les pages restreintes aux utilisateurs
     if (pagesRestreintes.includes(page) && currentUser && currentUser.role !== 'admin') {
       link.parentElement.style.display = 'none';
     }
@@ -1018,7 +1018,7 @@ function setupClientsTabs() {
 }
 
 /* =========================
-   RECHERCHE CLIENTS - CORRIGÉ
+        RECHERCHE CLIENTS
    ========================= */
 
 // Ajouter cet écouteur d'événement après le chargement des clients
@@ -1049,18 +1049,77 @@ function handleClientsSearch(e) {
   
   displayFilteredClients(filteredClients);
 }
+// Fonction clic sur client ammène ves consulter ce Client
+function setupClientRowNavigation() {
+  const tbody = document.getElementById('clientsTableBody');
+  if (!tbody) return;
+
+  // Évite les doublons
+  if (tbody.__navBound) return;
+  tbody.__navBound = true;
+
+  const goToView = (e) => {
+    const cell = e.target.closest('td');
+    if (!cell) return;
+
+    // ignorer clic sur le badge statut
+    if (cell.querySelector('.statut-badge')) return;
+
+    const row = cell.closest('tr.client-row');
+    if (!row) return;
+
+    const clientId = row.getAttribute('data-client-id');
+    if (!clientId) return;
+
+    // 1) Basculer vers l’onglet “consulter-un-client”
+    document.querySelectorAll('#clients .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#clients .tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('#clients .tab[data-tab="consulter-un-client"]')?.classList.add('active');
+    document.getElementById('consulter-un-client')?.classList.add('active');
+
+    // 2) Mettre à jour le custom select (déclenchera handleViewClientSelection via MutationObserver)
+    const selectElement = document.getElementById('viewClientSelect');
+    if (!selectElement) {
+      // fallback direct
+      handleViewClientSelection(clientId);
+      return;
+    }
+
+    const nativeSelect = selectElement.querySelector('select');
+    if (nativeSelect) {
+      nativeSelect.value = String(clientId);
+      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    const selectedDiv = selectElement.querySelector('.select-selected');
+    if (selectedDiv) {
+      const client = (clients || []).find(c => String(c.id) === String(clientId));
+      const label = client?.nom_raison_sociale
+        ? `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`
+        : `Client #${clientId}`;
+      selectedDiv.textContent = label;
+      selectedDiv.setAttribute('data-client-id', String(clientId)); // → MutationObserver appelle handleViewClientSelection
+    } else {
+      handleViewClientSelection(clientId);
+    }
+  };
+
+  // Navigation sur clic
+  tbody.addEventListener('click', goToView, { passive: true });
+  // Navigation aussi sur double-clic (aucune copie ici)
+  tbody.addEventListener('dblclick', goToView, { passive: true });
+}
 
 // Afficher les clients filtrés
 function displayFilteredClients(filteredClients) {
   const tbody = document.getElementById('clientsTableBody');
-  
+
   if (!filteredClients.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client trouvé</td></tr>';
     return;
   }
-  
   tbody.innerHTML = filteredClients.map(c => `
-    <tr data-client-id="${c.id}">
+    <tr class="client-row" data-client-id="${c.id}">
       <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
       <td data-field="ice">${c.ice || '-'}</td>
       <td data-field="ville">${c.ville || '-'}</td>
@@ -1068,6 +1127,9 @@ function displayFilteredClients(filteredClients) {
       <td><span class="statut-badge ${c.statut || 'actif'}">${c.statut || 'Actif'}</span></td>
     </tr>
   `).join('');
+
+  // Seulement navigation
+  setupClientRowNavigation();
 }
 
 // Modifier la fonction loadClients pour initialiser la recherche
@@ -1113,9 +1175,8 @@ function displayClients(){
     tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client trouvé</td></tr>';
     return;
   }
-  
   tbody.innerHTML = clients.map(c => `
-    <tr data-client-id="${c.id}">
+    <tr class="client-row" data-client-id="${c.id}">
       <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
       <td data-field="ice">${c.ice || '-'}</td>
       <td data-field="ville">${c.ville || '-'}</td>
@@ -1123,8 +1184,9 @@ function displayClients(){
       <td><span class="statut-badge ${c.statut || 'actif'}">${c.statut || 'Actif'}</span></td>
     </tr>
   `).join('');
-   
-  setupCopyToClipboard();
+
+  // Seulement navigation
+  setupClientRowNavigation();
 }
 function setupCopyToClipboard() {
   const tbody = document.getElementById('clientsTableBody');
@@ -1302,6 +1364,7 @@ async function handleAddClient() {
     alert('Erreur lors de l\'enregistrement du client');
   }
 }
+
 /* =========================
    GESTION DU FORMULAIRE MODIFIER
    ========================= */
@@ -3828,7 +3891,7 @@ function loadCurrentUser() {
 function updateUserUI() {
   // Afficher info utilisateur
   document.getElementById('currentUserName').textContent = currentUser.nom_complet;
-  document.getElementById('currentUserRole').textContent = currentUser.role === 'admin' ? 'Administrateur' : 'Collaborateur';
+  document.getElementById('currentUserRole').textContent = currentUser.role === 'admin' ? 'Administrateur' : 'utilisateur';
   
   // Masquer onglet historique si pas admin
   if (currentUser.role !== 'admin') {
@@ -3915,7 +3978,7 @@ function loadUsersList() {
       <td>${user.email}</td>
       <td>
         <span class="role-badge role-${user.role}">
-          ${user.role === 'admin' ? 'Administrateur' : 'Collaborateur'}
+          ${user.role === 'admin' ? 'Administrateur' : 'utilisateur'}
         </span>
       </td>
       <td>

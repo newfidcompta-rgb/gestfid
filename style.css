@@ -107,7 +107,7 @@
   top: 0;
   background: var(--bg-secondary);
   z-index: 100;
-}
+  }
     .header h2 { font-size:1.875rem; font-weight:700; color:var(--text-primary); }
     .header-actions { display:flex; align-items:center; gap:1rem; }
     .date-display { color:var(--text-secondary); font-size:.875rem; }
@@ -151,27 +151,55 @@
     }
     .btn-warning:hover { background:#d97706; }
 
-   #clients .header,
-   #declarations .header,
-   #codes .header,
-   #honoraires .header {
+  #clients .header,
+#declarations .header,
+#codes .header,
+#honoraires .header {
   position: sticky;
   top: 0;
   background: var(--bg-secondary);
   z-index: 100;
-  padding: 1rem 0 0.5rem 0;
-  }
+  padding: 0.5rem 0 0.3rem 0; /* ↓ réduit la hauteur du header */
+}
 
-  #clients .tabs,
-  #declarations .tabs,
-  #codes .tabs,
-  #honoraires .tabs {
+/* Barre des onglets */
+#clients .tabs,
+#declarations .tabs,
+#codes .tabs,
+#honoraires .tabs {
   position: sticky;
-  top: 50px; /* Ajuste cette valeur */
+  top: 38px; /* ↓ ajusté pour correspondre à la nouvelle hauteur du header */
   background: var(--bg-secondary);
   z-index: 99;
-  margin-bottom: 1rem;
-  }
+  margin-bottom: 0.5rem; /* ↓ réduit l’espace en dessous */
+  height: 36px; /* ↓ donne une hauteur fixe plus fine */
+  display: flex;
+  align-items: center;
+}
+
+#clients .tab,
+#declarations .tab,
+#codes .tab,
+#honoraires .tab,
+#honoraires .tab {
+  padding: 0.35rem 0.9rem; /* ↓ réduit la hauteur interne */
+  font-size: 0.9rem;
+  line-height: 1rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease-in-out;
+}
+
+#clients .tab.active,
+#declarations .tab.active,
+#codes .tab.active,
+#honoraires .tab.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
     /* =========================
        PAGE LOGIN
        ========================= */
@@ -366,11 +394,10 @@
 
     .clients-table-container { background:#fff; border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
     .clients-table { width:100%; border-collapse:collapse; }
-    .clients-table th {
-      background:var(--bg-secondary); padding:1rem; text-align:left;
-      font-weight:600; color:var(--text-primary); border-bottom:1px solid var(--border-color);
-    }
-    .clients-table td { padding:1rem; border-bottom:1px solid var(--border-color); }
+    .clients-table th {background: var(--bg-secondary);  padding: 0.45rem 0.75rem; text-align: left; font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border-color); font-size: 0.9rem;}
+
+    .clients-table td {  padding: 0.35rem 0.75rem;  border-bottom: 1px solid var(--border-color);  font-size: 0.9rem;}
+
     .clients-table tbody tr:hover { background:#f8fafc; }
     .clients-table tbody tr:last-child td { border-bottom:none; }
 
@@ -389,6 +416,10 @@
     .statut-badge.actif { background:#d1fae5; color:#065f46; }
     .statut-badge.inactif { background:#fef3c7; color:#92400e; }
     .statut-badge.archive { background:#e5e7eb; color:#374151; }
+    /* Pour montrer que les lignes clients sont cliquables */
+    #clients .clients-table tbody tr.client-row { cursor: pointer; }
+    #clients .clients-table tbody tr.client-row:hover { background: #f7f9fc; }
+
     /* =========================
    STYLES POUR LA PAGE CLIENTS
    ========================= */
@@ -438,6 +469,127 @@
   max-height: 70vh;
   overflow-y: auto;
 }
+/* ===== FORMULAIRES CLIENTS ===== */
+
+/* ====== NORMALISATION FORMULAIRES CLIENTS ====== */
+#addClientForm,
+#editClientForm,
+#viewClientForm {
+  /* même base visuelle et espacement */
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,.05));
+}
+
+/* grille commune */
+#addClientForm .form-grid,
+#editClientForm .form-grid,
+#viewClientForm .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px; /* row-gap / col-gap */
+}
+
+/* mobile: une seule colonne */
+@media (max-width: 920px) {
+  #addClientForm .form-grid,
+  #editClientForm .form-grid,
+  #viewClientForm .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* groupe champ (label + input) */
+#addClientForm .form-group,
+#editClientForm .form-group,
+#viewClientForm .form-group {
+  display: flex;
+  flex-direction: column;
+  margin: 0;              /* ✨ unifie */
+  gap: 6px;               /* espace label/input */
+}
+
+/* labels identiques */
+#addClientForm label,
+#editClientForm label,
+#viewClientForm label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: #1e293b;
+}
+
+/* champs identiques (input/select/textarea) */
+#addClientForm input,
+#addClientForm select,
+#addClientForm textarea,
+#editClientForm input,
+#editClientForm select,
+#editClientForm textarea,
+#viewClientForm input,
+#viewClientForm select,
+#viewClientForm textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 38px;       /* ✨ même hauteur */
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #c2d9f0;
+  border-radius: 8px;
+  background: #f0f7ff;    /* froid clair */
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+/* focus unifié */
+#addClientForm input:focus,
+#addClientForm select:focus,
+#addClientForm textarea:focus,
+#editClientForm input:focus,
+#editClientForm select:focus,
+#editClientForm textarea:focus,
+#viewClientForm input:focus,
+#viewClientForm select:focus,
+#viewClientForm textarea:focus {
+  outline: none;
+  border-color: #60a5fa;
+  background: #e6f1ff;
+  box-shadow: 0 0 0 3px rgba(96,165,250,.25);
+}
+
+/* date inputs — assurer la même hauteur */
+#addClientForm input[type="date"],
+#editClientForm input[type="date"],
+#viewClientForm input[type="date"] {
+  min-height: 38px;
+  line-height: 38px;
+}
+
+/* actions (ligne boutons) */
+#addClientForm .form-actions,
+#editClientForm .form-actions,
+#viewClientForm .form-actions {
+  grid-column: 1 / -1; /* barre d’actions pleine largeur */
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+/* custom select (si tu utilises .select-selected) */
+#addClientForm .select-selected,
+#editClientForm .select-selected,
+#viewClientForm .select-selected {
+  min-height: 38px;
+  line-height: 38px;
+  padding: 0 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #c2d9f0;
+  background: #f0f7ff;
+  color: #0f172a;
+}
+
+
 /* =========================
    STYLES POUR FICHE CLIENT PDF SIMPLIFIÉE
    ========================= */
@@ -634,6 +786,77 @@
       padding:.5rem .75rem; cursor:pointer; border-radius:6px; font-size:.9rem; display:flex; align-items:center; gap:.5rem;
     }
     .action-menu .menu-item:hover { background:var(--bg-secondary); }
+/* Container pour les 3 filtres Échéances */
+#echeances .header-actions {
+    display: flex;
+    align-items: end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Filtre Exercice */
+#echeances #anneeSelection {
+    width: 150px;
+    height: 42px;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: white;
+    font-size: 0.875rem;
+}
+
+/* Filtre Client */
+#echeances .custom-select-wrapper {
+    min-width: 300px !important;
+    width: auto;
+}
+
+#echeances .select-selected {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+/* Filtre État */
+#echeances #filtreEtat {
+    width: 200px;
+    height: 42px;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: white;
+    font-size: 0.875rem;
+}
+
+/* Groupes de formulaire */
+#echeances .form-group {
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#echeances .form-group label {
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    #echeances .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #echeances #anneeSelection,
+    #echeances #filtreEtat,
+    #echeances .custom-select-wrapper {
+        width: 100%;
+        min-width: 100% !important;
+    }
+}
 
     /* =========================
        MODAL
@@ -1199,4 +1422,28 @@
     .badge {
       padding:.25rem .5rem; border-radius:12px; font-size:.75rem; font-weight:600; background:#e5e7eb; color:#374151;
     }
-  
+/* Pour Ajouter et Modifier (sans bouton) */
+#ajouter .modal-header,
+#modifier .modal-header {
+    margin-bottom: 2rem !important;
+    padding: 1rem 0 0.5rem 0 !important;
+    
+}
+
+/* Pour Consulter (avec bouton PDF) */
+#consulter-un-client .modal-header {
+    margin-bottom: 2rem !important;
+    padding: 0.75rem 0 0.5rem 0 !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#consulter-un-client .modal-header h3 {
+    margin-bottom: 0 !important;
+}
+
+#consulter-un-client #btnImprimerFicheClient {
+    margin-top: 0 !important;
+    padding: 0.5rem 1rem;
+}
