@@ -2617,11 +2617,11 @@ function updatePrintButton() {
     return;
   }
   
-  const declAffect = clientDeclarations.filter(cd => 
+  const declarationsAffectees = clientDeclarations.filter(cd => 
     cd.client_id === clientId && cd.annee_comptable == annee
   );
   
-  if (declAffect.length > 0) {
+  if (declarationsAffectees.length > 0) {
     printBtn.disabled = false;
     printBtn.classList.add('btn-attention');
   } else {
@@ -2633,27 +2633,25 @@ function updatePrintButton() {
 function imprimerListeDeclarations() {
   const clientId = getSelectedClientId('clientSelection');
   const annee = document.getElementById('anneeAffectation').value;
-  function imprimerListeDeclarations() {
-  const clientId = getSelectedClientId('clientSelection');
-  const annee = document.getElementById('anneeAffectation').value;
   
   if (!clientId || clientId === 'tous') {
     alert('Veuillez sélectionner un client');
     return;
   }
   
-  const declAffect = clientDeclarations.filter(cd => 
+  const declarationsAffectees = clientDeclarations.filter(cd => 
     cd.client_id === clientId && cd.annee_comptable == annee
   );
   
-  if (declAffect.length === 0) {
+  if (declarationsAffectees.length === 0) {
     alert('Aucune déclaration affectée à ce client');
     return;
-    }
   }
   
+  const client = clients.find(c => c.id === clientId);
+  
   // Récupérer les détails des déclarations
-  const declarationsAvecDetails = declAffect.map(cd => {
+  const declarationsAvecDetails = declarationsAffectees.map(cd => {
     const declType = declarationTypes.find(dt => dt.id === cd.declaration_type_id);
     return {
       ...cd,
@@ -2661,9 +2659,9 @@ function imprimerListeDeclarations() {
     };
   });
   
+  // CORRECTION : Utiliser declarationsAvecDetails au lieu de declarationsAffectees
   genererPDFListeDeclarations(client, declarationsAvecDetails, annee);
 }
-
 function genererPDFListeDeclarations(client, declarations, annee) {
   const printWindow = window.open('', '_blank');
   const dateGeneration = new Date().toLocaleDateString('fr-FR');
