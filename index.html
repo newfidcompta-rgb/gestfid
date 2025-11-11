@@ -56,7 +56,7 @@
           <p>Cabinet Comptable Agréé</p>
         </div>
       </div>
-
+      
       <ul class="nav-links">
         <li><a href="#" class="nav-link active" data-page="dashboard"><i class="fas fa-chart-bar"></i> Tableau de bord</a></li>
         <li><a href="#" class="nav-link" data-page="clients"><i class="fas fa-users"></i> Clients</a></li>
@@ -89,7 +89,13 @@
             <div class="date-display" id="currentDate"></div>
           </div>
         </div>
-
+      <div class="progress-section">
+          <h3>Progression des tâches</h3>
+          <div class="progress-container">
+            <div class="progress-bar"><div class="progress-fill" style="width:85%"></div></div>
+            <span class="progress-text">85% complété</span>
+          </div>
+      </div>
          <div class="stats-grid">
   <!-- Clients Actifs -->
   <div class="stat-card">
@@ -173,6 +179,7 @@
     <div class="tab" data-tab="consulter-un-client">Consulter un Client</div>
     <div class="tab" data-tab="ajouter">Ajouter un Client</div>
     <div class="tab" data-tab="modifier">Modifier un Client</div>
+    <div class="tab" data-tab="archives">🗑️ Archives Clients</div>
   </div>
 
   <!-- Onglet Liste Clients  -->
@@ -606,7 +613,29 @@
           </div>
         </form>
       </div>
-
+      
+       <!-- Onglet CLIENTS ARCHIVES -->
+      <div id="archives" class="tab-content">
+  <div class="card">
+    <h3>Clients Archivés</h3>
+    <div class="clients-table-container">
+      <table class="clients-table">
+        <thead>
+          <tr>
+            <th>Nom / Raison Sociale</th>
+            <th>ICE</th>
+            <th>Date Archivage</th>
+            <th>Raison</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="archivesTableBody">
+          <tr><td colspan="5" class="no-data">Chargement des archives...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
       <!-- Message quand aucun client sélectionné -->
       <div id="editPlaceholder" class="no-data" style="text-align: center; padding: 3rem;">
         <i class="fas fa-user-edit" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>

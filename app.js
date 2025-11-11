@@ -700,7 +700,7 @@ function navigateToPage(link) {
 /* =========================
    DASHBOARD
    ========================= */
-async function loadDashboardData() {
+ async function loadDashboardData() {
   try {
     console.log('📊 Début du chargement du tableau de bord...');
 
@@ -1008,15 +1008,19 @@ function setupClientsTabs() {
       
       if(target === 'consulter') {
         displayClients();
-        setupCopyToClipboard();
       }
       if(target === 'modifier') {
         populateEditClientSelect();
       }
+      if(target === 'consulter-un-client') {
+        populateCustomSelect('viewClientSelect', clients, null, false);
+      }
+      if(target === 'archives') {  // ← NOUVEAU
+        loadClientsArchives();
+      }
     });
   });
 }
-
 /* =========================
         RECHERCHE CLIENTS
    ========================= */
@@ -1167,6 +1171,15 @@ async function loadClients(){
   }
 }
 
+async function archiverClientPrompt(clientId) {
+  const raison = prompt('Raison de l\'archivage ?');
+  if (raison === null) return;
+  
+  if (await archiverClient(clientId, raison)) {
+    alert('Client archivé avec succès !');
+    loadClients(); // Recharger la liste
+  }
+}
 /*    AFFICHAGE ET COPIE DES CLIENTS    */
 
 function displayClients(){
@@ -1183,6 +1196,11 @@ function displayClients(){
       <td data-field="contact">${c.contact || '-'}</td>
       <td><span class="statut-badge ${c.statut || 'actif'}">${c.statut || 'Actif'}</span></td>
     </tr>
+    <td class="actions">
+    <button class="btn-warning" onclick="archiverClientPrompt('${c.id}')">
+    <i class="fas fa-archive"></i> Archiver
+    </button>
+    </td>
   `).join('');
 
   // Seulement navigation
@@ -1720,31 +1738,7 @@ function fillHonorairesClients(list){
   populateCustomSelect('honorairesClientSelect', data, honosClientId, false);
 }
 
-// Corriger setupClientsTabs()
-function setupClientsTabs() {
-  document.querySelectorAll('#clients .tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const target = tab.getAttribute('data-tab');
-      
-      document.querySelectorAll('#clients .tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('#clients .tab-content').forEach(c => c.classList.remove('active'));
-      
-      tab.classList.add('active'); 
-      document.getElementById(target).classList.add('active');
-      
-      if(target === 'consulter') {
-        displayClients();
-        setupCopyToClipboard(); // ❌ RETIRER CETTE LIGNE
-      }
-      if(target === 'modifier') {
-        populateEditClientSelect();
-      }
-      if(target === 'consulter-un-client') {
-        populateCustomSelect('viewClientSelect', clients, null, false);
-      }
-    });
-  });
-}
+
 // =========================
 // GÉNÉRATION FICHE CLIENT PDF
 // =========================
@@ -4296,4 +4290,106 @@ async function updateLastLogin(userId) {
   } catch (error) {
     console.error('❌ Erreur mise à jour dernière connexion:', error);
   }
+}
+/* =========================
+   GESTION ARCHIVES CLIENTS  
+   ========================= */
+
+// Archiver un client (client → archive)
+async function archiverClient(clientId, raison) {
+  try {
+    const { error } = await supabase.rpc('archiver_client', {
+      client_id: clientId,
+      utilisateur_id: currentUser.id,
+      raison: raison
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Erreur archivage:', error);
+    alert('Erreur lors de l\'archivage: ' + error.message);
+    return false;
+  }
+}
+
+// Restaurer un client (archive → client)
+async function restaurerClient(archiveId) {
+  try {
+    const { error } = await supabase.rpc('restaurer_client', {
+      archive_id: archiveId,
+      utilisateur_id: currentUser.id
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Erreur restauration:', error);
+    alert('Erreur lors de la restauration: ' + error.message);
+    return false;
+  }
+}
+
+// Supprimer définitivement (archive → destruction)
+async function supprimerClientDefinitif(archiveId) {
+  if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce client ? Cette action est irréversible.')) {
+    return false;
+  }
+  
+  try {
+    const { error } = await supabase.rpc('supprimer_client_definitif', {
+      archive_id: archiveId,
+      utilisateur_id: currentUser.id
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Erreur suppression:', error);
+    alert('Erreur lors de la suppression: ' + error.message);
+    return false;
+  }
+}
+async function loadClientsArchives() {
+  try {
+    const { data, error } = await supabase
+      .from('clients_archives')
+      .select('*')
+      .order('archived_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    displayClientsArchives(data || []);
+  } catch (error) {
+    console.error('Erreur chargement archives:', error);
+    document.getElementById('archivesTableBody').innerHTML = 
+      '<tr><td colspan="5" class="no-data">Erreur de chargement</td></tr>';
+  }
+}
+
+// Charger la liste des clients archivés
+function displayClientsArchives(archives) {
+  const tbody = document.getElementById('archivesTableBody');
+  
+  if (!archives.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client archivé</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = archives.map(archive => `
+    <tr>
+      <td>${archive.nom_raison_sociale || 'Non renseigné'}</td>
+      <td>${archive.ice || '-'}</td>
+      <td>${new Date(archive.archived_at).toLocaleDateString('fr-FR')}</td>
+      <td>${archive.raison_archivage || '-'}</td>
+      <td class="actions">
+        <button class="btn-success" onclick="restaurerClient('${archive.id}')">
+          <i class="fas fa-undo"></i> Restaurer
+        </button>
+        <button class="btn-secondary" onclick="supprimerClientDefinitif('${archive.id}')">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </td>
+    </tr>
+  `).join('');
 }
