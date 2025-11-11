@@ -857,7 +857,173 @@
         min-width: 100% !important;
     }
 }
+/* =========================
+   STYLES ACCORDEON AFFECTATION - NOUVELLES CATEGORIES
+   ========================= */
 
+.category-accordion {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  background: white;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.category-accordion:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.category-header {
+  padding: 1.25rem 1.5rem;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+
+.category-header:hover {
+  background: var(--bg-hover);
+}
+
+.category-title-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.category-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.category-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.category-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stats-count {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  background: var(--bg-primary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  min-width: 45px;
+  text-align: center;
+}
+
+.accordion-arrow {
+  transition: transform 0.3s ease;
+}
+
+.accordion-arrow i {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.category-content {
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  background: var(--bg-light);
+}
+
+.category-content[style*="display: block"] {
+  max-height: 600px;
+  padding: 1.5rem;
+}
+
+.declaration-item {
+  padding: 0.75rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+  margin-bottom: 0.5rem;
+}
+
+.declaration-item:last-child {
+  margin-bottom: 0;
+}
+
+.declaration-item:hover {
+  background: var(--bg-hover);
+}
+
+.declaration-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  width: 100%;
+}
+
+.item-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.declaration-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+}
+
+.declaration-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.declaration-dates {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  min-width: 180px;
+  text-align: right;
+}
+
+/* Animation pour l'accordéon */
+.category-accordion .category-content {
+  transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+/* Style pour les catégories vides */
+.category-accordion:has(.no-data) .category-header {
+  opacity: 0.6;
+}
+/* Style pour le bouton d'impression */
+.btn-attention {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border-color: #d97706 !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.btn-attention:hover {
+  background: linear-gradient(135deg, #d97706, #b45309) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4) !important;
+}
     /* =========================
        MODAL
        ========================= */

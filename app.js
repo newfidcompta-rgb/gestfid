@@ -619,6 +619,7 @@ async function initializeApp(){
     initializeCodesPage();
     setupEditClientSelect(); 
     setupViewClientSelect();
+    setupPrintButton();
     
     // 3. ÉVÉNEMENTS
     document.getElementById('logoutBtn').addEventListener('click', (e) => {
@@ -960,7 +961,7 @@ function showClientsIncompletsAlert(nombreClients) {
 function openDeclarationsPage() {
   console.log('🔗 Navigation vers la page déclarations...');
   
-  // Naviguer vers la page déclarations
+    // Naviguer vers la page déclarations
   const declarationsLink = document.querySelector('[data-page="declarations"]');
   if (declarationsLink) {
     declarationsLink.click();
@@ -975,7 +976,7 @@ function openDeclarationsPage() {
     }, 500);
   }
 }
-// Gestion des erreurs du dashboard
+  // Gestion des erreurs du dashboard
 function showDashboardError() {
   const statsGrid = document.querySelector('.stats-grid');
   if (statsGrid) {
@@ -1015,8 +1016,8 @@ function setupClientsTabs() {
       if(target === 'consulter-un-client') {
         populateCustomSelect('viewClientSelect', clients, null, false);
       }
-      if(target === 'archives') {  // ← NOUVEAU
-        loadClientsArchives();
+      if(target === 'archives') {
+        loadClientsArchives(); // ← AJOUTER CETTE LIGNE
       }
     });
   });
@@ -1153,6 +1154,7 @@ async function loadClients(){
     setupClientsTabs();
     setupAddClientForm();
     setupEditClientForm();
+
     
     // 🔍 INITIALISER LA RECHERCHE APRÈS LE CHARGEMENT
     setupClientsSearch();
@@ -2155,126 +2157,7 @@ function setupDeclarationsTabs(){
   });
 }
 
-function loadAffectationChecklist(){
-  const container = document.getElementById('checklistContent');
-  const clientId = getSelectedClientId('clientSelection');
-  const annee = document.getElementById('anneeAffectation').value;
-  const btn = document.getElementById('affecterDeclarationsBtn');
 
-  if(!clientId || clientId === 'tous') {
-    container.innerHTML = '<div class="no-data">Sélectionnez un client</div>'; 
-    btn.style.display = 'none'; 
-    return;
-  }
-  
-  btn.style.display = 'block';
-
-  const declAffect = clientDeclarations.filter(cd => cd.client_id === clientId && cd.annee_comptable == annee);
-  
-  const has = (s, ...qs) => (s ? qs.some(q => s.toLowerCase().includes(q.toLowerCase())) : false);
-  const isP = (d, p) => (d.periodicite || '').toLowerCase() === p;
-
-  const sections = [
-    {
-      title: 'Declarations Mensuelles', 
-      blocks: [
-        {key: 'mens_cnss', label: 'CNSS', match: d => isP(d, 'mensuelle') && (d.type_declaration === 'CNSS' || has(d.nom_template, 'cnss'))},
-        {key: 'mens_tva', label: 'TVA Mensuelle', match: d => isP(d, 'mensuelle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))},
-        {key: 'mens_ir', label: 'RAS IR/Salaires', match: d => isP(d, 'mensuelle') && (has(d.type_declaration, 'ir') || has(d.nom_template, 'ir/salaire', 'ir salaire'))},
-        {key: 'mens_loyer', label: 'RAS Sur Loyer', match: d => isP(d, 'mensuelle') && (has(d.type_declaration, 'ras', 'loyer') || has(d.nom_template, 'ras/loyer', 'ras loyer', 'loyer'))},
-      ]
-    },
-    {
-      title: 'Declarations Trimestrielles', 
-      blocks: [
-        {key: 'tri_is', label: 'IS - Acomptes', match: d => isP(d, 'trimestrielle') && d.type_declaration === 'IS' && has(d.nom_template, 'acompte', 'premier', 'deuxième', 'troisième', 'quatrième', 't1', 't2', 't3', 't4')},
-        {key: 'tri_tva', label: 'TVA Trimestrielle', match: d => isP(d, 'trimestrielle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))},
-        {key: 'tri_delais', label: 'Délais de Paiement', match: d => isP(d, 'trimestrielle') && has(d.nom_template, 'délai', 'delai', 'paiement')},
-      ]
-    },
-    {
-      title: 'Déclarations Annuelles', 
-      blocks: [
-        {key: 'ann_is', label: 'IS', match: d => isP(d, 'annuelle') && d.type_declaration === 'IS'},
-        {key: 'ann_ir', label: 'IR', match: d => isP(d, 'annuelle') && (d.type_declaration === 'IR' || has(d.nom_template, 'traitements', 'salaires', 'cotisation minimale', 'liasse', 'rémunération'))},
-      ]
-    }
-  ];
-
-  const html = sections.map(sec => {
-    const blocksHtml = sec.blocks.map(b => {
-      const items = declarationTypes.filter(b.match);
-      if(!items.length) return '';
-      
-      const total = items.length;
-      const nbCochees = items.filter(decl => declAffect.some(cd => cd.declaration_type_id === decl.id)).length;
-      const all = nbCochees === total, some = nbCochees > 0 && nbCochees < total;
-      
-      const itemsHtml = items.map(decl => {
-        const checked = declAffect.some(cd => cd.declaration_type_id === decl.id);
-        const d1 = calculerDateReellePourDecl(decl, decl.date_debut_template, annee);
-        const d2 = calculerDateReellePourDecl(decl, decl.date_fin_template, annee);
-        
-        return `
-          <div class="declaration-item" data-block="${b.key}">
-            <label>
-              <input type="checkbox" class="item-checkbox" ${checked ? 'checked' : ''} data-declaration-id="${decl.id}" data-block="${b.key}">
-              <div class="declaration-info">
-                <div class="declaration-name">${decl.nom_template}</div>
-                <div class="declaration-dates">${d1.toLocaleDateString('fr-FR')} - ${d2.toLocaleDateString('fr-FR')}</div>
-              </div>
-            </label>
-          </div>`;
-      }).join('');
-      
-      return `
-        <div class="block-wrapper" data-block="${b.key}">
-          <div class="block-title">
-            <label>
-              <input type="checkbox" class="block-checkbox" data-block="${b.key}" ${all ? 'checked' : ''} ${some ? 'data-indeterminate="1"' : ''}>
-              <span>${b.label}</span>
-            </label>
-          </div>
-          <div class="declaration-items">${itemsHtml}</div>
-        </div>`;
-    }).join('');
-    
-    return `<div class="category"><div class="category-title">${sec.title}</div>${blocksHtml}</div>`;
-  }).join('');
-
-  container.innerHTML = html || '<div class="no-data">Aucune déclaration</div>';
-  container.querySelectorAll('.block-checkbox[data-indeterminate="1"]').forEach(cb => cb.indeterminate = true);
-
-  container.addEventListener('change', (e) => {
-    const t = e.target;
-    
-    if(t.classList.contains('block-checkbox')) {
-      const k = t.getAttribute('data-block');
-      container.querySelectorAll(`.item-checkbox[data-block="${k}"]`).forEach(i => i.checked = t.checked);
-      t.indeterminate = false;
-    }
-    
-    if(t.classList.contains('item-checkbox')) {
-      const k = t.getAttribute('data-block');
-      const items = [...container.querySelectorAll(`.item-checkbox[data-block="${k}"]`)];
-      const checked = items.filter(i => i.checked).length;
-      const blockCb = container.querySelector(`.block-checkbox[data-block="${k}"]`);
-      
-      if(!blockCb) return;
-      
-      if(checked === 0) {
-        blockCb.checked = false;
-        blockCb.indeterminate = false;
-      } else if(checked === items.length) {
-        blockCb.checked = true;
-        blockCb.indeterminate = false;
-      } else {
-        blockCb.checked = false;
-        blockCb.indeterminate = true;
-      }
-    }
-  });
-}
 
 function doitBasculerNPlus1(decl){
   const p = (decl.periodicite || '').toLowerCase();
@@ -2361,6 +2244,7 @@ async function handleAffectation(){
     
     await loadClientDeclarations(); 
     await loadEcheances();
+    updatePrintButton();
   } catch(e) {
     console.error(e);
     alert('Erreur lors de l\'affectation');
@@ -2490,7 +2374,466 @@ async function mettreAJourStatutEcheance(id, statut){
 async function reinitialiserStatut(id){ 
   await mettreAJourStatutEcheance(id, null); 
 }
+/* =========================
+   SYSTEME ACCORDEON POUR AFFECTATION - NOUVELLES CATEGORIES
+   ========================= */
 
+function loadAffectationChecklist(){
+  const container = document.getElementById('checklistContent');
+  const clientId = getSelectedClientId('clientSelection');
+  const annee = document.getElementById('anneeAffectation').value;
+  const btn = document.getElementById('affecterDeclarationsBtn');
+
+  if(!clientId || clientId === 'tous') {
+    container.innerHTML = '<div class="no-data">Sélectionnez un client</div>'; 
+    btn.style.display = 'none'; 
+    return;
+  }
+  
+  btn.style.display = 'block';
+
+  const declAffect = clientDeclarations.filter(cd => cd.client_id === clientId && cd.annee_comptable == annee);
+  
+  const has = (s, ...qs) => (s ? qs.some(q => s.toLowerCase().includes(q.toLowerCase())) : false);
+  const isP = (d, p) => (d.periodicite || '').toLowerCase() === p;
+
+  // NOUVELLES CATEGORIES SELON TA LISTE
+  const sections = [
+    {
+      title: 'CNSS',
+      id: 'cnss',
+      match: d => d.type_declaration === 'CNSS' || has(d.nom_template, 'cnss')
+    },
+    {
+      title: 'TVA Mensuelle', 
+      id: 'tva_mensuelle',
+      match: d => isP(d, 'mensuelle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))
+    },
+    {
+      title: 'RAS IR/Salaires',
+      id: 'ras_ir_salaires', 
+      match: d => has(d.type_declaration, 'ir') || has(d.nom_template, 'ir/salaire', 'ir salaire', 'traitements', 'salaires')
+    },
+    {
+      title: 'RAS Sur Loyer',
+      id: 'ras_loyer',
+      match: d => has(d.type_declaration, 'ras', 'loyer') || has(d.nom_template, 'ras/loyer', 'ras loyer', 'loyer')
+    },
+    {
+      title: 'IS - Acomptes',
+      id: 'is_acomptes',
+      match: d => d.type_declaration === 'IS' && has(d.nom_template, 'acompte', 'premier', 'deuxième', 'troisième', 'quatrième', 't1', 't2', 't3', 't4')
+    },
+    {
+      title: 'TVA Trimestrielle',
+      id: 'tva_trimestrielle',
+      match: d => isP(d, 'trimestrielle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))
+    },
+    {
+      title: 'Délais de Paiement',
+      id: 'delais_paiement',
+      match: d => has(d.nom_template, 'délai', 'delai', 'paiement')
+    },
+    {
+      title: 'IS - Déclarations Annuelles',
+      id: 'is_annuelles',
+      match: d => isP(d, 'annuelle') && d.type_declaration === 'IS'
+    },
+    {
+      title: 'IR - Déclarations Annuelles',
+      id: 'ir_annuelles',
+      match: d => isP(d, 'annuelle') && d.type_declaration === 'IR'
+    }
+  ];
+
+  const html = sections.map(sec => {
+    const items = declarationTypes.filter(sec.match);
+    
+    if(!items.length) return '';
+    
+    const total = items.length;
+    const nbCochees = items.filter(decl => declAffect.some(cd => cd.declaration_type_id === decl.id)).length;
+    const all = nbCochees === total, some = nbCochees > 0 && nbCochees < total;
+    
+    const itemsHtml = items.map(decl => {
+      const checked = declAffect.some(cd => cd.declaration_type_id === decl.id);
+      const d1 = calculerDateReellePourDecl(decl, decl.date_debut_template, annee);
+      const d2 = calculerDateReellePourDecl(decl, decl.date_fin_template, annee);
+      
+      return `
+        <div class="declaration-item" data-declaration-id="${decl.id}">
+          <label>
+            <input type="checkbox" class="item-checkbox" ${checked ? 'checked' : ''} data-declaration-id="${decl.id}">
+            <div class="declaration-info">
+              <div class="declaration-name">${decl.nom_template}</div>
+              <div class="declaration-dates">${d1.toLocaleDateString('fr-FR')} - ${d2.toLocaleDateString('fr-FR')}</div>
+            </div>
+          </label>
+        </div>`;
+    }).join('');
+    
+    return `
+      <div class="category-accordion" data-category="${sec.id}">
+        <div class="category-header">
+          <div class="category-title-section">
+            <input type="checkbox" class="category-checkbox" ${all ? 'checked' : ''} ${some ? 'data-indeterminate="1"' : ''} data-category="${sec.id}">
+            <h3 class="category-title">${sec.title}</h3>
+          </div>
+          <div class="category-stats">
+            <span class="stats-count">${nbCochees}/${total}</span>
+            <div class="accordion-arrow">
+              <i class="fas fa-chevron-down"></i>
+            </div>
+          </div>
+        </div>
+        <div class="category-content">
+          ${itemsHtml}
+        </div>
+      </div>`;
+  }).filter(html => html !== '').join('');
+
+  container.innerHTML = html || '<div class="no-data">Aucune déclaration disponible</div>';
+  
+  // Initialiser les accordéons
+  initializeAccordions();
+  // Gérer les cases à cocher
+  setupCheckboxHandlers(container);
+  // Initialiser le bouton imprimer
+  updatePrintButton();
+}
+
+function initializeAccordions() {
+  const accordions = document.querySelectorAll('.category-accordion');
+  
+  accordions.forEach(accordion => {
+    const header = accordion.querySelector('.category-header');
+    const content = accordion.querySelector('.category-content');
+    const arrow = accordion.querySelector('.accordion-arrow i');
+    
+    // Fermer tous les accordéons par défaut
+    content.style.display = 'none';
+    arrow.classList.remove('fa-chevron-up');
+    arrow.classList.add('fa-chevron-down');
+    
+    header.addEventListener('click', function(e) {
+      // Ne pas déclencher si on clique sur la checkbox
+      if (e.target.type === 'checkbox') return;
+      
+      // Fermer tous les autres accordéons
+      accordions.forEach(otherAccordion => {
+        if (otherAccordion !== accordion) {
+          const otherContent = otherAccordion.querySelector('.category-content');
+          const otherArrow = otherAccordion.querySelector('.accordion-arrow i');
+          otherContent.style.display = 'none';
+          otherArrow.classList.remove('fa-chevron-up');
+          otherArrow.classList.add('fa-chevron-down');
+        }
+      });
+      
+      // Basculer l'accordéon actuel
+      const isOpen = content.style.display === 'block';
+      content.style.display = isOpen ? 'none' : 'block';
+      arrow.classList.toggle('fa-chevron-up', !isOpen);
+      arrow.classList.toggle('fa-chevron-down', isOpen);
+    });
+  });
+  
+}
+
+function setupCheckboxHandlers(container) {
+  // Cases à cocher indéterminées
+  container.querySelectorAll('.category-checkbox[data-indeterminate="1"]').forEach(cb => cb.indeterminate = true);
+
+  container.addEventListener('change', (e) => {
+    const t = e.target;
+    
+    if(t.classList.contains('category-checkbox')) {
+      const categoryId = t.getAttribute('data-category');
+      const categoryAccordion = container.querySelector(`.category-accordion[data-category="${categoryId}"]`);
+      categoryAccordion.querySelectorAll('.item-checkbox').forEach(i => i.checked = t.checked);
+      t.indeterminate = false;
+      
+      // Mettre à jour le compteur
+      updateCategoryStats(categoryAccordion);
+    }
+    
+    if(t.classList.contains('item-checkbox')) {
+      const categoryAccordion = t.closest('.category-accordion');
+      const items = [...categoryAccordion.querySelectorAll('.item-checkbox')];
+      const checked = items.filter(i => i.checked).length;
+      const total = items.length;
+      const categoryCb = categoryAccordion.querySelector('.category-checkbox');
+      
+      if(checked === 0) {
+        categoryCb.checked = false;
+        categoryCb.indeterminate = false;
+      } else if(checked === total) {
+        categoryCb.checked = true;
+        categoryCb.indeterminate = false;
+      } else {
+        categoryCb.checked = false;
+        categoryCb.indeterminate = true;
+      }
+      
+      // Mettre à jour le compteur
+      updateCategoryStats(categoryAccordion);
+    }
+  });
+}
+
+function updateCategoryStats(categoryAccordion) {
+  const items = categoryAccordion.querySelectorAll('.item-checkbox');
+  const checked = [...items].filter(i => i.checked).length;
+  const total = items.length;
+  const statsCount = categoryAccordion.querySelector('.stats-count');
+  
+  if (statsCount) {
+    statsCount.textContent = `${checked}/${total}`;
+  }
+}
+/* =========================
+   BOUTON IMPRESSION LISTE DECLARATIONS
+   ========================= */
+
+function setupPrintButton() {
+  const printBtn = document.getElementById('btnImprimerDeclarations');
+  if (!printBtn) return;
+  
+  printBtn.addEventListener('click', imprimerListeDeclarations);
+}
+
+function updatePrintButton() {
+  const printBtn = document.getElementById('btnImprimerDeclarations');
+  console.log('🖨️ Bouton impression:', printBtn); // Debug
+  const clientId = getSelectedClientId('clientSelection');
+  const annee = document.getElementById('anneeAffectation').value;
+  
+  if (!printBtn || !clientId || clientId === 'tous') {
+    if (printBtn) {
+      printBtn.style.display = 'block';
+      printBtn.disabled = true;
+      printBtn.classList.remove('btn-attention');
+    }
+    return;
+  }
+  
+  const declAffect = clientDeclarations.filter(cd => 
+    cd.client_id === clientId && cd.annee_comptable == annee
+  );
+  
+  if (declAffect.length > 0) {
+    printBtn.disabled = false;
+    printBtn.classList.add('btn-attention');
+  } else {
+    printBtn.disabled = true;
+    printBtn.classList.remove('btn-attention');
+  }
+}
+
+function imprimerListeDeclarations() {
+  const clientId = getSelectedClientId('clientSelection');
+  const annee = document.getElementById('anneeAffectation').value;
+  function imprimerListeDeclarations() {
+  const clientId = getSelectedClientId('clientSelection');
+  const annee = document.getElementById('anneeAffectation').value;
+  
+  if (!clientId || clientId === 'tous') {
+    alert('Veuillez sélectionner un client');
+    return;
+  }
+  
+  const declAffect = clientDeclarations.filter(cd => 
+    cd.client_id === clientId && cd.annee_comptable == annee
+  );
+  
+  if (declAffect.length === 0) {
+    alert('Aucune déclaration affectée à ce client');
+    return;
+    }
+  }
+  
+  // Récupérer les détails des déclarations
+  const declarationsAvecDetails = declAffect.map(cd => {
+    const declType = declarationTypes.find(dt => dt.id === cd.declaration_type_id);
+    return {
+      ...cd,
+      declaration_type: declType
+    };
+  });
+  
+  genererPDFListeDeclarations(client, declarationsAvecDetails, annee);
+}
+
+function genererPDFListeDeclarations(client, declarations, annee) {
+  const printWindow = window.open('', '_blank');
+  const dateGeneration = new Date().toLocaleDateString('fr-FR');
+  
+  const printContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liste des Déclarations - ${client.nom_raison_sociale}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: white;
+            color: #1f2937;
+            line-height: 1.4;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 15px;
+        }
+        
+        .title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+        
+        .client-info {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border-left: 4px solid #2563eb;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+        }
+        
+        .table th {
+            background: #2563eb;
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .table td {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        .periodicite-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .mensuelle { background: #dbeafe; color: #1e40af; }
+        .trimestrielle { background: #fef3c7; color: #92400e; }
+        .annuelle { background: #d1fae5; color: #065f46; }
+        
+        .summary {
+            background: #f0f9ff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #0ea5e9;
+            margin-top: 2rem;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+        
+        @page {
+            margin: 10mm;
+        }
+        
+        @media print {
+            body {
+                background: white !important;
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">NEW FID - Cabinet Comptable</h1>
+        <h2 class="subtitle">Liste des Déclarations Affectées</h2>
+    </div>
+    
+    <div class="client-info">
+        <h3 style="margin: 0 0 0.5rem 0; color: #1f2937;">Client: ${client.nom_raison_sociale}</h3>
+        ${client.ice ? `<p style="margin: 0; color: #6b7280;">ICE: ${client.ice}</p>` : ''}
+        <p style="margin: 0.25rem 0 0 0; color: #6b7280;">Exercice: ${annee}</p>
+    </div>
+    
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Déclaration</th>
+                <th>Type</th>
+                <th>Périodicité</th>
+                <th>Date Début</th>
+                <th>Date Fin</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${declarations.map(decl => `
+                <tr>
+                    <td><strong>${decl.declaration_type.nom_template}</strong></td>
+                    <td>${decl.declaration_type.type_declaration}</td>
+                    <td>
+                        <span class="periodicite-badge ${decl.declaration_type.periodicite}">
+                            ${decl.declaration_type.periodicite}
+                        </span>
+                    </td>
+                    <td>${new Date(decl.date_debut).toLocaleDateString('fr-FR')}</td>
+                    <td>${new Date(decl.date_fin).toLocaleDateString('fr-FR')}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    </table>
+    
+    <div class="summary">
+        <h4 style="margin: 0 0 1rem 0; color: #0ea5e9;">Récapitulatif</h4>
+        <p style="margin: 0;"><strong>Total des déclarations:</strong> ${declarations.length}</p>
+        <p style="margin: 0.5rem 0 0 0;"><strong>Date de génération:</strong> ${dateGeneration}</p>
+    </div>
+    
+    <div class="footer">
+        Document généré par GEST FID - NEW FID Cabinet Comptable
+    </div>
+</body>
+</html>
+  `;
+  
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.print();
+}
 /* =========================
    MENUS GLOBAUX
    ========================= */
@@ -4350,26 +4693,41 @@ async function supprimerClientDefinitif(archiveId) {
     return false;
   }
 }
+
 async function loadClientsArchives() {
   try {
+    console.log('📁 Chargement des clients archivés...');
+    
     const { data, error } = await supabase
       .from('clients_archives')
       .select('*')
       .order('archived_at', { ascending: false });
     
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Erreur chargement archives:', error);
+      throw error;
+    }
     
+    console.log(`✅ ${data?.length || 0} clients archivés chargés`);
     displayClientsArchives(data || []);
+    
   } catch (error) {
-    console.error('Erreur chargement archives:', error);
-    document.getElementById('archivesTableBody').innerHTML = 
-      '<tr><td colspan="5" class="no-data">Erreur de chargement</td></tr>';
+    console.error('❌ Erreur chargement archives:', error);
+    const tbody = document.getElementById('archivesTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="5" class="no-data">Erreur de chargement des archives</td></tr>';
+    }
   }
 }
 
 // Charger la liste des clients archivés
 function displayClientsArchives(archives) {
   const tbody = document.getElementById('archivesTableBody');
+  
+  if (!tbody) {
+    console.error('❌ Tableau des archives non trouvé');
+    return;
+  }
   
   if (!archives.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client archivé</td></tr>';
@@ -4380,16 +4738,37 @@ function displayClientsArchives(archives) {
     <tr>
       <td>${archive.nom_raison_sociale || 'Non renseigné'}</td>
       <td>${archive.ice || '-'}</td>
-      <td>${new Date(archive.archived_at).toLocaleDateString('fr-FR')}</td>
-      <td>${archive.raison_archivage || '-'}</td>
+      <td>${archive.archived_at ? new Date(archive.archived_at).toLocaleDateString('fr-FR') : '-'}</td>
+      <td>${archive.raison_archivage || 'Non spécifiée'}</td>
       <td class="actions">
-        <button class="btn-success" onclick="restaurerClient('${archive.id}')">
+        <button class="btn-success" onclick="restaurerClientPrompt('${archive.id}')">
           <i class="fas fa-undo"></i> Restaurer
         </button>
-        <button class="btn-secondary" onclick="supprimerClientDefinitif('${archive.id}')">
+        <button class="btn-secondary" onclick="supprimerClientDefinitifPrompt('${archive.id}')">
           <i class="fas fa-trash"></i> Supprimer
         </button>
       </td>
     </tr>
   `).join('');
+  
+  console.log('✅ Affichage des archives mis à jour');
+}
+async function restaurerClientPrompt(archiveId) {
+  if (confirm('Êtes-vous sûr de vouloir restaurer ce client ?')) {
+    const success = await restaurerClient(archiveId);
+    if (success) {
+      alert('Client restauré avec succès !');
+      loadClientsArchives();
+    }
+  }
+}
+
+async function supprimerClientDefinitifPrompt(archiveId) {
+  if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce client ? Cette action est irréversible.')) {
+    const success = await supprimerClientDefinitif(archiveId);
+    if (success) {
+      alert('Client supprimé définitivement !');
+      loadClientsArchives();
+    }
+  }
 }
