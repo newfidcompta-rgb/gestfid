@@ -1,5 +1,5 @@
 /* =========================
-   SUPABASE + ETAT GLOBAL
+   CONFIGURATION ET INITIALISATION
    ========================= */
 
 // Configuration Supabase
@@ -13,7 +13,6 @@ try {
   console.log('Supabase initialisé avec succès');
 } catch (error) {
   console.error('Erreur initialisation Supabase:', error);
-  // Fallback: création d'un objet mock pour éviter les erreurs
   supabase = {
     from: () => ({
       select: () => Promise.resolve({data: [], error: null}),
@@ -24,428 +23,35 @@ try {
   };
 }
 
+/* =========================
+   VARIABLES GLOBALES ET CONSTANTES
+   ========================= */
+
 // État global
 let currentUser = null;
 let clients = [];
 let declarationTypes = [];
 let clientDeclarations = [];
 let echeances = [];
-
-/* HONORAIRES (Supabase) */
-let honosClientId = null;
-let honosExercice = new Date().getFullYear().toString();
-let honosFactu = [];  // Cache local
-let honosPay = [];    // Cache local
-
-// SITUATION GLOBALE
+let allUsers = [];
+let activityLogs = [];
+let codesData = [];
 let situationGlobaleData = [];
 
-/* =========================
-   UTIL DATES
-   ========================= */
-function toYMDLocal(date){
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+// Honoraire
+let honosClientId = null;
+let honosExercice = new Date().getFullYear().toString();
+let honosFactu = [];
+let honosPay = [];
 
-function parseYMDLocal(s){
-  if (!s) return new Date();
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
+// Codes
+let currentSelectedClientId = null;
+let isEditMode = false;
 
 /* =========================
-   CUSTOM SELECT SYSTEM
-   ========================= */
-function initializeCustomSelects() {
-  document.querySelectorAll('.custom-select').forEach(select => {
-    setupCustomSelect(select);
-  });
-}
-
-function setupCustomSelect(selectElement) {
-  const selectedDiv = selectElement.querySelector('.select-selected');
-  const itemsDiv = selectElement.querySelector('.select-items');
-  const searchInput = selectElement.querySelector('.select-search-input');
-  const optionsContainer = selectElement.querySelector('.select-options');
-  
-  // Fonction pour fermer ce dropdown
-  function closeThisDropdown() {
-    itemsDiv.style.display = 'none';
-    selectedDiv.classList.remove('select-arrow-active');
-    if (searchInput) {
-      searchInput.value = ''; // Réinitialiser la recherche
-      filterClientOptions(optionsContainer, ''); // Réafficher toutes les options
-    }
-  }
-  
-  // Ouvrir le dropdown
-  selectedDiv.addEventListener('click', function(e) {
-    e.stopPropagation();
-    
-    // Fermer tous les autres dropdowns d'abord
-    closeAllSelects(this);
-    
-    // Ouvrir celui-ci
-    itemsDiv.style.display = 'block';
-    this.classList.add('select-arrow-active');
-    
-    // Focus sur la recherche si elle existe
-    setTimeout(() => {
-      if (searchInput) {
-        searchInput.focus();
-      }
-    }, 100);
-  });
-  
-  // Recherche en temps réel
-  if (searchInput) {
-    searchInput.addEventListener('input', function(e) {
-      const query = e.target.value.toLowerCase();
-      filterClientOptions(optionsContainer, query);
-    });
-    
-    // Empêcher la fermeture quand on clique dans la recherche
-    searchInput.addEventListener('click', function(e) {
-      e.stopPropagation();
-    });
-  }
-  
-  // Fermer quand on clique ailleurs
-  document.addEventListener('click', function(e) {
-    if (!selectElement.contains(e.target)) {
-      closeThisDropdown();
-    }
-  });
-  
-  // Empêcher la fermeture quand on clique dans le dropdown
-  itemsDiv.addEventListener('click', function(e) {
-    e.stopPropagation();
-  });
-  
-  // Gérer la sélection d'une option
-  optionsContainer.addEventListener('click', function(e) {
-    const option = e.target.closest('div[data-client-id]');
-    if (option) {
-      const clientId = option.getAttribute('data-client-id');
-      const clientText = option.textContent;
-      
-      // Mettre à jour l'affichage sélectionné
-      selectedDiv.textContent = clientText;
-      selectedDiv.setAttribute('data-client-id', clientId);
-      
-      // Fermer le dropdown
-      closeThisDropdown();
-      
-      // Déclencher l'action correspondante
-      handleClientSelectionAfterChoose(selectElement.id, clientId);
-    }
-  });
-}
-
-// Fonction pour gérer la sélection après choix
-function handleClientSelectionAfterChoose(selectId, clientId) {
-  console.log(`✅ Sélection: ${selectId} -> Client: ${clientId}`);
-  
-  switch(selectId) {
-    case 'clientSelection':
-      loadAffectationChecklist();
-      break;
-    case 'filtreClient':
-      loadEcheancesTable();
-      break;
-    case 'honorairesClientSelect':
-      honosClientId = clientId;
-      refreshHonorairesUI();
-      break;
-    case 'codeClientSelect':
-      selectedCodeClientId = clientId;
-      if (clientId) {
-        const selectedClient = clients.find(c => c.id === clientId);
-        updateSelectedClientInfo(selectedClient);
-        loadClientCodes(clientId);
-      } else {
-        clearSelectedClientInfo();
-        clearCodesGrid();
-      }
-      updateCodesUI();
-      break;
-  }
-}
-
-function filterClientOptions(optionsContainer, query) {
-  const allOptions = optionsContainer.querySelectorAll('div[data-client-id]');
-  allOptions.forEach(option => {
-    const text = option.textContent.toLowerCase();
-    if (text.includes(query)) {
-      option.style.display = 'block';
-    } else {
-      option.style.display = 'none';
-    }
-  });
-}
-
-function closeAllSelects(exceptElement) {
-  document.querySelectorAll('.select-items').forEach(item => {
-    item.style.display = 'none';
-  });
-  document.querySelectorAll('.select-selected').forEach(selected => {
-    selected.classList.remove('select-arrow-active');
-  });
-}
-
-function populateCustomSelect(selectId, clients, selectedId = null, includeAllOption = false) {
-  const selectElement = document.getElementById(selectId);
-  if (!selectElement) {
-    console.error(`❌ Selecteur ${selectId} non trouvé`);
-    return;
-  }
-  
-  const optionsContainer = selectElement.querySelector('.select-options');
-  const selectedDiv = selectElement.querySelector('.select-selected');
-  
-  if (!optionsContainer) {
-    console.error('❌ Conteneur d\'options non trouvé');
-    return;
-  }
-  
-  // Vider les options existantes
-  optionsContainer.innerHTML = '';
-  
-  // Option "Tous les clients" si demandé
-  if (includeAllOption) {
-    const allOption = document.createElement('div');
-    allOption.textContent = 'Tous les clients';
-    allOption.setAttribute('data-client-id', 'tous');
-    optionsContainer.appendChild(allOption);
-  }
-  
-  // Ajouter chaque client
-  clients.forEach(client => {
-    const option = document.createElement('div');
-    option.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
-    option.setAttribute('data-client-id', client.id);
-    optionsContainer.appendChild(option);
-  });
-  
-  // Mettre à jour la sélection affichée
-  if (selectedId) {
-    const selectedClient = clients.find(c => c.id === selectedId);
-    if (selectedClient) {
-      selectedDiv.textContent = `${selectedClient.nom_raison_sociale}${selectedClient.ice ? ' - ' + selectedClient.ice : ''}`;
-      selectedDiv.setAttribute('data-client-id', selectedId);
-    }
-  } else if (includeAllOption) {
-    selectedDiv.textContent = 'Tous les clients';
-    selectedDiv.setAttribute('data-client-id', 'tous');
-  }
-  
-  console.log(`✅ Selecteur ${selectId} peuplé avec ${clients.length} clients`);
-}
-
-function handleClientSelection(selectId, clientId) {
-  const selectElement = document.getElementById(selectId);
-  if (selectElement) {
-    selectElement.querySelector('.select-items').style.display = 'none';
-    selectElement.querySelector('.select-selected').classList.remove('select-arrow-active');
-  }
-  
-  switch(selectId) {
-    case 'clientSelection':
-      loadAffectationChecklist();
-      break;
-    case 'filtreClient':
-      loadEcheancesTable();
-      break;
-    case 'honorairesClientSelect':
-      honosClientId = clientId;
-      refreshHonorairesUI();
-      break;
-  }
-}
-
-function getSelectedClientId(selectId) {
-    const selectElement = document.getElementById(selectId);
-    if (!selectElement) return null;
-    const selectedDiv = selectElement.querySelector('.select-selected');
-    return selectedDiv.getAttribute('data-client-id');
-}
-
-/* =========================
-   HONORAIRES SUPABASE
+   FONCTIONS D'AUTHENTIFICATION
    ========================= */
 
-// Charger depuis Supabase
-async function loadHonorairesFromSupabase() {
-  try {
-    console.log('Chargement des honoraires depuis Supabase...');
-    
-    // Charger les facturations
-    const { data: facturations, error: errorFactu } = await supabase
-      .from('honoraires_factures')
-      .select('*')
-      .order('date', { ascending: false });
-    
-    if (errorFactu) {
-      console.error('Erreur chargement facturations:', errorFactu);
-    } else {
-      honosFactu = facturations || [];
-      console.log(`${honosFactu.length} facturations chargées`);
-    }
-    
-    // Charger les paiements
-    const { data: paiements, error: errorPay } = await supabase
-      .from('honoraires_paiements')
-      .select('*')
-      .order('date', { ascending: false });
-    
-    if (errorPay) {
-      console.error('Erreur chargement paiements:', errorPay);
-    } else {
-      honosPay = paiements || [];
-      console.log(`${honosPay.length} paiements chargés`);
-    }
-    
-  } catch (e) {
-    console.error('Erreur chargement honoraires Supabase:', e);
-    honosFactu = [];
-    honosPay = [];
-  }
-}
-
-// Ajouter une facturation
-async function addFacturation(facturationData) {
-  try {
-    const { data, error } = await supabase
-      .from('honoraires_factures')
-      .insert([facturationData])
-      .select();
-    
-    if (error) throw error;
-    
-    if (data && data[0]) {
-      honosFactu.unshift(data[0]);
-    }
-    
-    return data ? data[0] : null;
-  } catch (error) {
-    console.error('Erreur ajout facturation:', error);
-    alert('Erreur lors de l\'ajout de la facturation: ' + error.message);
-    return null;
-  }
-}
-
-// Ajouter un paiement
-async function addPaiement(paiementData) {
-  try {
-    const { data, error } = await supabase
-      .from('honoraires_paiements')
-      .insert([paiementData])
-      .select();
-    
-    if (error) throw error;
-    
-    if (data && data[0]) {
-      honosPay.unshift(data[0]);
-    }
-    
-    return data ? data[0] : null;
-  } catch (error) {
-    console.error('Erreur ajout paiement:', error);
-    alert('Erreur lors de l\'ajout du paiement: ' + error.message);
-    return null;
-  }
-}
-
-// Modifier une facturation
-async function updateFacturation(id, updates) {
-  try {
-    const { error } = await supabase
-      .from('honoraires_factures')
-      .update(updates)
-      .eq('id', id);
-    
-    if (error) throw error;
-    
-    const index = honosFactu.findIndex(item => item.id === id);
-    if (index !== -1) {
-      honosFactu[index] = { ...honosFactu[index], ...updates };
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Erreur modification facturation:', error);
-    alert('Erreur lors de la modification: ' + error.message);
-    return false;
-  }
-}
-
-// Modifier un paiement
-async function updatePaiement(id, updates) {
-  try {
-    const { error } = await supabase
-      .from('honoraires_paiements')
-      .update(updates)
-      .eq('id', id);
-    
-    if (error) throw error;
-    
-    const index = honosPay.findIndex(item => item.id === id);
-    if (index !== -1) {
-      honosPay[index] = { ...honosPay[index], ...updates };
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Erreur modification paiement:', error);
-    alert('Erreur lors de la modification: ' + error.message);
-    return false;
-  }
-}
-
-// Supprimer une facturation
-async function deleteFacturation(id) {
-  try {
-    const { error } = await supabase
-      .from('honoraires_factures')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-    
-    honosFactu = honosFactu.filter(item => item.id !== id);
-    return true;
-  } catch (error) {
-    console.error('Erreur suppression facturation:', error);
-    alert('Erreur lors de la suppression: ' + error.message);
-    return false;
-  }
-}
-
-// Supprimer un paiement
-async function deletePaiement(id) {
-  try {
-    const { error } = await supabase
-      .from('honoraires_paiements')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-    
-    honosPay = honosPay.filter(item => item.id !== id);
-    return true;
-  } catch (error) {
-    console.error('Erreur suppression paiement:', error);
-    alert('Erreur lors de la suppression: ' + error.message);
-    return false;
-  }
-}
-
-/* =========================
-   LOGIN
-   ========================= */
 document.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('currentUser');
   if (savedUser) {
@@ -477,9 +83,6 @@ function showApp() {
   initializeApp();
 }
 
-/* =========================
-   LOGIN AVEC TABLE USERS
-   ========================= */
 async function handleLogin(e) {
   e.preventDefault();
 
@@ -496,7 +99,6 @@ async function handleLogin(e) {
     
     console.log('🔐 Tentative de connexion:', email);
     
-    // 1. RECHERCHER L'UTILISATEUR DANS LA TABLE users
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -504,27 +106,14 @@ async function handleLogin(e) {
       .eq('is_active', true)
       .single();
     
-    if (error) {
-      console.error('❌ Erreur Supabase:', error);
-      throw new Error('Identifiants incorrects ou compte inactif');
-    }
+    if (error) throw new Error('Identifiants incorrects ou compte inactif');
+    if (!user) throw new Error('Aucun utilisateur trouvé avec cet email');
     
-    if (!user) {
-      throw new Error('Aucun utilisateur trouvé avec cet email');
-    }
-    
-    console.log('✅ Utilisateur trouvé:', user.nom_complet, '- Rôle:', user.role);
-    
-    // 2. VÉRIFICATION MOT DE PASSE (version simplifiée)
-    // NOTE: En production, utilisez bcrypt pour comparer les hashs
-    const inputPasswordHash = btoa(password); // Conversion base64 simple
+    const inputPasswordHash = btoa(password);
     if (inputPasswordHash !== user.password_hash) {
       throw new Error('Mot de passe incorrect');
     }
     
-    console.log('✅ Mot de passe correct');
-    
-    // 3. CRÉER LA SESSION UTILISATEUR
     currentUser = {
       id: user.id,
       email: user.email,
@@ -532,15 +121,12 @@ async function handleLogin(e) {
       role: user.role
     };
 
-    // Sauvegarder dans localStorage
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     
-    // 4. JOURNALISER LA CONNEXION
     await logUserActivity('connexion', 'login', {
       user_agent: navigator.userAgent
     });
     
-    // 5. METTRE À JOUR LA DERNIÈRE CONNEXION
     await updateLastLogin(user.id);
     
     console.log('✅ Connexion réussie, redirection...');
@@ -556,16 +142,13 @@ async function handleLogin(e) {
     }
   }
 }
-/* =========================
-   VÉRIFICATION ACCÈS PAGES
-   ========================= */
+
 function checkPageAccess(page) {
   const pagesAdminOnly = ['gestion-utilisateurs', 'situation-globale'];
   
   if (pagesAdminOnly.includes(page) && currentUser && currentUser.role !== 'admin') {
     alert('⛔ Accès non autorisé. Cette page est réservée aux administrateurs.');
     
-    // Rediriger vers le dashboard
     document.querySelectorAll('.nav-link').forEach(link => {
       if (link.getAttribute('data-page') === 'dashboard') {
         navigateToPage(link);
@@ -579,212 +162,63 @@ function checkPageAccess(page) {
 }
 
 /* =========================
-   INIT APP
+   FONCTIONS DU TABLEAU DE BORD
    ========================= */
-async function initializeApp(){
-  console.log('Initialisation de l application...');
-  updateDate();
-  
-  // CHARGER L'UTILISATEUR COURANT
-  const savedUser = localStorage.getItem('currentUser');
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-    console.log('👤 Utilisateur:', currentUser.nom_complet, '- Rôle:', currentUser.role);
-  }
-  
-  try {
-    // 1. CHARGEMENT DES DONNÉES
-    await Promise.all([ 
-      loadClients(),
-      loadDeclarationTypes(), 
-      loadClientDeclarations(), 
-      loadEcheances(), 
-      loadDashboardData(),
-      loadHonorairesFromSupabase()
-    ]);
-    
-    // 2. CONFIGURATION DE L'INTERFACE (selon le rôle)
-    setupNav(); // ← Va masquer les pages selon le rôle
-    setupDeclarationsTabs();
-    setupGlobalMenus();
-    setupHonoraires();
-    initializeCustomSelects();
-    
-    // INITIALISER SEULEMENT SI ADMIN
-    if (currentUser && currentUser.role === 'admin') {
-      initializeSituationGlobale();
-      initializeUsersManagement();
-    }
-    
-    initializeCodesPage();
-    setupEditClientSelect(); 
-    setupViewClientSelect();
-    setupPrintButton();
-    
-    // 3. ÉVÉNEMENTS
-    document.getElementById('logoutBtn').addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.removeItem('currentUser');
-      currentUser = null;
-      showLogin();
-    });
-    
-    console.log('Application initialisée avec succès');
-  } catch (error) {
-    console.error('Erreur lors de l initialisation:', error);
-  }
-}
 
-/* =========================
-   NAV - AVEC GESTION DES RÔLES
-   ========================= */
-function setupNav(){
-  // MASQUER LES PAGES SENSIBLES POUR LES utilisateurS
-  const pagesRestreintes = ['gestion-utilisateurs', 'situation-globale'];
-  
-  document.querySelectorAll('.nav-link').forEach(link => {
-    const page = link.getAttribute('data-page');
-    
-    // Masquer les pages restreintes aux utilisateurs
-    if (pagesRestreintes.includes(page) && currentUser && currentUser.role !== 'admin') {
-      link.parentElement.style.display = 'none';
-    }
-    
-    link.addEventListener('click', (e) => {
-      // VÉRIFIER LES ACCÈS AVANT LA NAVIGATION
-      if (pagesRestreintes.includes(page) && currentUser && currentUser.role !== 'admin') {
-        e.preventDefault();
-        alert('⛔ Accès réservé aux administrateurs');
-        return;
-      }
-      
-      // 🚫 SUPPRIMER LE MOT DE PASSE pour situation-globale
-      // Navigation directe pour tous les admins
-      
-      // Navigation normale pour toutes les pages
-      navigateToPage(link);
-    });
-  });
-}
-
-// Extraire la logique de navigation
-function navigateToPage(link) {
-  const page = link.getAttribute('data-page');
-  
-  // VÉRIFIER LES ACCÈS AVANT DE NAVIGUER
-  if (!checkPageAccess(page)) {
-    return;
-  }
-  
-  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  
-  link.classList.add('active');
-  const pg = document.getElementById(page);
-  if(pg) pg.classList.add('active');
-  
-  // Charger les données si nécessaire
-  if(page === 'declarations') loadDeclarationData();
-  if(page === 'honoraires') refreshHonorairesUI();
-  if(page === 'clients') displayClients();
-  if(page === 'dashboard') loadDashboardData();
-  
-  // Pages admin seulement
-  if(page === 'situation-globale' && currentUser && currentUser.role === 'admin') {
-    loadSituationGlobale();
-  }
-  if(page === 'gestion-utilisateurs' && currentUser && currentUser.role === 'admin') {
-    loadUsersData();
-  }
-}
-
-/* =========================
-   DASHBOARD
-   ========================= */
- async function loadDashboardData() {
+async function loadDashboardData() {
   try {
     console.log('📊 Début du chargement du tableau de bord...');
 
-    /* 1) CLIENTS ACTIFS */
-    console.log('🔍 Récupération des clients actifs...');
     const { data: clientsData, error: clientsError } = await supabase
       .from('clients')
       .select('id, nom_raison_sociale, statut');
 
-    if (clientsError) {
-      console.error('❌ Erreur clients:', clientsError);
-      throw clientsError;
-    }
+    if (clientsError) throw clientsError;
 
     const clientsActifsList = (clientsData || []).filter(c => c.statut !== 'archive');
     const idsClientsActifs = new Set(clientsActifsList.map(c => c.id));
     const clientsActifsCount = idsClientsActifs.size;
-    console.log(`✅ Clients actifs: ${clientsActifsCount}`);
 
-    /* 2) CLIENTS À JOUR (aucune échéance tardive) */
-    console.log('🔍 Calcul des clients à jour...');
     const aujourdhui = toYMDLocal(new Date());
-
-    // Échéances dépassées ET statut NULL
     const { data: tardivesNull, error: e1 } = await supabase
       .from('echeances')
       .select('client_id')
       .lt('date_fin', aujourdhui)
       .is('statut_manuel', null);
 
-    // Échéances dépassées ET statut NOT IN ('deposee','payee')
     const { data: tardivesNotOk, error: e2 } = await supabase
       .from('echeances')
       .select('client_id')
       .lt('date_fin', aujourdhui)
       .not('statut_manuel', 'in', '("deposee","payee")');
 
-    if (e1) console.error('❌ tardivesNull:', e1);
-    if (e2) console.error('❌ tardivesNotOk:', e2);
-
     const clientsAvecRetard = new Set(
       [...(tardivesNull || []), ...(tardivesNotOk || [])]
         .map(r => r.client_id)
-        .filter(id => idsClientsActifs.has(id)) // on ne garde que les actifs
+        .filter(id => idsClientsActifs.has(id))
     );
 
     let clientsAJour = clientsActifsCount - clientsAvecRetard.size;
     if (clientsAJour < 0) clientsAJour = 0;
-    console.log(`✅ Clients à jour: ${clientsAJour} sur ${clientsActifsCount}`);
 
-    /* 3) PÉRIODE MENSUELLE */
     const maintenant = new Date();
     const debutMois = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
     const finMois = new Date(maintenant.getFullYear(), maintenant.getMonth() + 1, 0);
     const debutMoisStr = toYMDLocal(debutMois);
     const finMoisStr = toYMDLocal(finMois);
-    console.log('📅 Période du mois:', debutMoisStr, '→', finMoisStr);
 
-    /* 4) DÉCLARATIONS DU MOIS */
-    console.log('🔍 Récupération des déclarations du mois...');
     const { data: declarationsMois, error: declMoisError } = await supabase
       .from('echeances')
       .select('id, statut_manuel')
       .lte('date_debut', finMoisStr)
       .gte('date_fin', debutMoisStr);
 
-    if (declMoisError) {
-      console.error('❌ Erreur déclarations mois:', declMoisError);
-      throw declMoisError;
-    }
+    if (declMoisError) throw declMoisError;
 
     const totalDeclarationsMois = declarationsMois?.length || 0;
-    const declarationsDeposees =
-      declarationsMois?.filter(d => d.statut_manuel === 'deposee' || d.statut_manuel === 'payee').length || 0;
+    const declarationsDeposees = declarationsMois?.filter(d => d.statut_manuel === 'deposee' || d.statut_manuel === 'payee').length || 0;
+    const declarationsRestantes = declarationsMois?.filter(d => d.statut_manuel === 'en_cours' || d.statut_manuel === null).length || 0;
 
-    // Restantes = en_cours ou null (on ne mélange pas les "tardives", comptées à part)
-    const declarationsRestantes =
-      declarationsMois?.filter(d => d.statut_manuel === 'en_cours' || d.statut_manuel === null).length || 0;
-
-    console.log(`✅ Déclarations du mois: ${totalDeclarationsMois} | Déposées: ${declarationsDeposees} | Restantes: ${declarationsRestantes}`);
-
-    /* 5) TARDIVES DE L'ANNÉE */
-    console.log('🔍 Calcul des tardives de l\'année...');
     const debutAnnee = new Date(maintenant.getFullYear(), 0, 1);
     const debutAnneeStr = toYMDLocal(debutAnnee);
 
@@ -794,10 +228,7 @@ function navigateToPage(link) {
       .gte('date_fin', debutAnneeStr)
       .lt('date_fin', aujourdhui);
 
-    if (declAnneeError) {
-      console.error('❌ Erreur déclarations année:', declAnneeError);
-      throw declAnneeError;
-    }
+    if (declAnneeError) throw declAnneeError;
 
     const declarationsTardives = (toutesDeclarationsAnnee || []).filter(d => {
       const estDeposee = d.statut_manuel === 'deposee' || d.statut_manuel === 'payee';
@@ -805,9 +236,7 @@ function navigateToPage(link) {
     });
 
     const totalTardivesAnnee = declarationsTardives.length;
-    console.log(`✅ Tardives année: ${totalTardivesAnnee}`);
 
-    /* 6) CLIENTS INCOMPLETS (pas de déclarations affectées sur l'année en cours) */
     let clientsIncomplets = 0;
     try {
       const anneeEnCours = maintenant.getFullYear();
@@ -816,10 +245,7 @@ function navigateToPage(link) {
         .select('client_id')
         .eq('annee_comptable', anneeEnCours);
 
-      if (declError) {
-        console.warn('⚠️ Erreur clients incomplets:', declError);
-      } else {
-        // On compte seulement ceux qui sont actifs
+      if (!declError) {
         const setActifsAvecDecl = new Set(
           (clientsAvecDeclarations || []).map(d => d.client_id).filter(id => idsClientsActifs.has(id))
         );
@@ -827,13 +253,9 @@ function navigateToPage(link) {
         if (clientsIncomplets < 0) clientsIncomplets = 0;
       }
     } catch (error) {
-      console.warn('⚠️ Exception clients incomplets:', error);
       clientsIncomplets = 0;
     }
-    console.log(`✅ Clients incomplets: ${clientsIncomplets}`);
 
-    /* 7) MISE À JOUR UI */
-    console.log('🎨 Mise à jour de l\'affichage...');
     updateDashboardDisplay({
       clientsActifs: clientsActifsCount,
       clientsAJour,
@@ -851,29 +273,10 @@ function navigateToPage(link) {
   }
 }
 
-// Fonction utilitaire pour formater les dates YYYY-MM-DD
-// Fonction utilitaire pour les dates
-function toYMDLocal(date) {
-  if (!(date instanceof Date)) {
-    console.error('❌ Date invalide:', date);
-    return '2024-01-01'; // Fallback
-  }
-  
-  try {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  } catch (error) {
-    console.error('❌ Erreur formatage date:', error);
-    return '2024-01-01';
-  }
-}
 function updateDashboardDisplay(metrics) {
   console.log('📊 Mise à jour de l\'affichage avec:', metrics);
   
   try {
-    // Mettre à jour toutes les métriques
     if (document.getElementById('totalClients')) {
       document.getElementById('totalClients').textContent = metrics.clientsActifs;
     }
@@ -898,7 +301,6 @@ function updateDashboardDisplay(metrics) {
       document.getElementById('tardivesAnnee').textContent = metrics.totalTardivesAnnee;
     }
 
-    // Avertissement clients incomplets
     showClientsIncompletsAlert(metrics.clientsIncomplets);
     
     console.log('✅ Affichage mis à jour avec succès');
@@ -906,17 +308,13 @@ function updateDashboardDisplay(metrics) {
     console.error('❌ Erreur mise à jour affichage:', error);
   }
 }
+
 function showClientsIncompletsAlert(nombreClients) {
   if (nombreClients === 0) {
-    // Supprimer l'alerte existante si elle existe
     const existingAlert = document.querySelector('.clients-incomplets-alert');
-    if (existingAlert) {
-      existingAlert.remove();
-    }
+    if (existingAlert) existingAlert.remove();
     return;
   }
-
-  console.log(`⚠️ Affichage alerte pour ${nombreClients} clients incomplets`);
 
   const alertHTML = `
     <div class="clients-incomplets-alert" style="
@@ -945,28 +343,21 @@ function showClientsIncompletsAlert(nombreClients) {
     </div>
   `;
 
-  // Insérer après la section progression
   const progressSection = document.querySelector('.progress-section');
   if (progressSection) {
-    // Supprimer l'ancienne alerte si elle existe
     const existingAlert = document.querySelector('.clients-incomplets-alert');
-    if (existingAlert) {
-      existingAlert.remove();
-    }
-    
-    // Ajouter la nouvelle alerte
+    if (existingAlert) existingAlert.remove();
     progressSection.insertAdjacentHTML('afterend', alertHTML);
   }
 }
+
 function openDeclarationsPage() {
   console.log('🔗 Navigation vers la page déclarations...');
   
-    // Naviguer vers la page déclarations
   const declarationsLink = document.querySelector('[data-page="declarations"]');
   if (declarationsLink) {
     declarationsLink.click();
     
-    // Ouvrir l'onglet affectation après un délai
     setTimeout(() => {
       const affectationTab = document.querySelector('[data-tab="affectation"]');
       if (affectationTab) {
@@ -976,7 +367,7 @@ function openDeclarationsPage() {
     }, 500);
   }
 }
-  // Gestion des erreurs du dashboard
+
 function showDashboardError() {
   const statsGrid = document.querySelector('.stats-grid');
   if (statsGrid) {
@@ -992,9 +383,34 @@ function showDashboardError() {
     `;
   }
 }
+
 /* =========================
-   CLIENTS
+   FONCTIONS GESTION CLIENTS
    ========================= */
+
+async function loadClients(){
+  try{
+    console.log('Chargement des clients...');
+    const {data, error} = await supabase.from('clients').select('*').order('nom_raison_sociale');
+    if(error) throw error;
+    
+    clients = data || [];
+    console.log(`${clients.length} clients chargés`);
+    
+    setupClientsTabs();
+    setupAddClientForm();
+    setupEditClientForm();
+    setupClientsSearch();
+    displayClients();
+    updateClientSelection();
+    updateFiltreClient();
+    fillHonorairesClients();
+    
+  } catch(e) {
+    console.error('Erreur chargement clients:', e);
+    document.getElementById('clientsTableBody').innerHTML = '<tr><td colspan="5" class="no-data">Erreur de chargement</td></tr>';
+  }
+}
 
 function setupClientsTabs() {
   document.querySelectorAll('#clients .tab').forEach(tab => {
@@ -1007,38 +423,23 @@ function setupClientsTabs() {
       tab.classList.add('active'); 
       document.getElementById(target).classList.add('active');
       
-      if(target === 'consulter') {
-        displayClients();
-      }
-      if(target === 'modifier') {
-        populateEditClientSelect();
-      }
-      if(target === 'consulter-un-client') {
-        populateCustomSelect('viewClientSelect', clients, null, false);
-      }
-      if(target === 'archives') {
-        loadClientsArchives(); // ← AJOUTER CETTE LIGNE
-      }
+      if(target === 'consulter') displayClients();
+      if(target === 'modifier') populateEditClientSelect();
+      if(target === 'consulter-un-client') populateCustomSelect('viewClientSelect', clients, null, false);
+      if(target === 'archives') loadClientsArchives();
     });
   });
 }
-/* =========================
-        RECHERCHE CLIENTS
-   ========================= */
 
-// Ajouter cet écouteur d'événement après le chargement des clients
 function setupClientsSearch() {
   const searchInput = document.getElementById('searchInput');
   if (searchInput) {
-    // Supprimer les anciens écouteurs pour éviter les doublons
     searchInput.removeEventListener('input', handleClientsSearch);
-    // Ajouter le nouvel écouteur
     searchInput.addEventListener('input', handleClientsSearch);
     console.log('🔍 Barre de recherche clients initialisée');
   }
 }
 
-// Fonction de recherche
 function handleClientsSearch(e) {
   const searchTerm = e.target.value.toLowerCase().trim();
   console.log('Recherche:', searchTerm);
@@ -1054,9 +455,39 @@ function handleClientsSearch(e) {
   
   displayFilteredClients(filteredClients);
 }
-// Fonction clic sur client amène vers consulter ce Client
-// Ne gère plus le double-clic ni la nav sur ligne.
-// Initialise juste le menu "Action" une seule fois.
+
+function displayFilteredClients(filteredClients) {
+  const tbody = document.getElementById('clientsTableBody');
+
+  if (!filteredClients.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client trouvé</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filteredClients.map(c => `
+    <tr class="client-row" data-client-id="${c.id}">
+      <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
+      <td data-field="ice">${c.ice || '-'}</td>
+      <td data-field="Code client">${c.code_client || '-'}</td>
+      <td data-field="contact">${c.contact || '-'}</td>
+      
+      <td class="actions">
+        <div class="dropdown">
+          <button class="action-btn">Action ▾</button>
+          <div class="dropdown-content">
+            <a href="#" class="action-view">Consulter</a>
+            <a href="#" class="action-edit">Modifier</a>
+            <a href="#" class="action-affect">Affecter déclarations</a>
+            <a href="#" class="action-archive">Archiver</a>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  setupClientRowNavigation();
+}
+
 function setupClientRowNavigation() {
   if (document.__clientsMenuBound) return;
   document.__clientsMenuBound = true;
@@ -1064,7 +495,6 @@ function setupClientRowNavigation() {
   document.addEventListener('click', (e) => {
     const dropdown = e.target.closest('.dropdown');
 
-    // Fermer tous les menus si clic à l'extérieur
     if (!dropdown) {
       document.querySelectorAll('.dropdown-content').forEach(menu => {
         menu.style.display = 'none';
@@ -1081,7 +511,6 @@ function setupClientRowNavigation() {
 
     const isOpen = menu.style.display === 'block';
 
-    // Fermer les autres
     document.querySelectorAll('.dropdown-content').forEach(m => {
       if (m !== menu) {
         m.style.display = 'none';
@@ -1101,7 +530,6 @@ function setupClientRowNavigation() {
       return;
     }
 
-    // Mesurer avant de décider haut/bas
     menu.style.visibility = 'hidden';
     menu.style.display = 'block';
     menu.style.top = '100%';
@@ -1125,89 +553,6 @@ function setupClientRowNavigation() {
     menu.style.visibility = '';
   }, { passive: true });
 }
-
-
-// Afficher les clients filtrés
-function displayFilteredClients(filteredClients) {
-  const tbody = document.getElementById('clientsTableBody');
-
-  if (!filteredClients.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client trouvé</td></tr>';
-    return;
-  }
-
-  // CORRECTION : Ajouter le bouton Action dans le HTML
-  tbody.innerHTML = filteredClients.map(c => `
-    <tr class="client-row" data-client-id="${c.id}">
-      <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
-      <td data-field="ice">${c.ice || '-'}</td>
-      <td data-field="Code client">${c.code_client || '-'}</td>
-      <td data-field="contact">${c.contact || '-'}</td>
-      
-      <td class="actions">
-        <div class="dropdown">
-          <button class="action-btn">Action ▾</button>
-          <div class="dropdown-content">
-            <a href="#" class="action-view">Consulter</a>
-            <a href="#" class="action-edit">Modifier</a>
-            <a href="#" class="action-affect">Affecter déclarations</a>
-            <a href="#" class="action-archive">Archiver</a>
-          </div>
-        </div>
-      </td>
-    </tr>
-  `).join('');
-
-  // Seulement navigation
-  setupClientRowNavigation();
-}
-
-// Modifier la fonction loadClients pour initialiser la recherche
-async function loadClients(){
-  try{
-    console.log('Chargement des clients...');
-    const {data, error} = await supabase.from('clients').select('*').order('nom_raison_sociale');
-    if(error) {
-      console.error('Erreur Supabase clients:', error);
-      throw error;
-    }
-    
-    clients = data || [];
-    console.log(`${clients.length} clients chargés`);
-    
-    // Initialiser les onglets clients
-    setupClientsTabs();
-    setupAddClientForm();
-    setupEditClientForm();
-
-    
-    // 🔍 INITIALISER LA RECHERCHE APRÈS LE CHARGEMENT
-    setupClientsSearch();
-    
-    // Afficher les clients dans l'onglet consultation
-    displayClients();
-    
-    // Mettre à jour les selecteurs
-    updateClientSelection();
-    updateFiltreClient();
-    fillHonorairesClients();
-    
-  } catch(e) {
-    console.error('Erreur chargement clients:', e);
-    document.getElementById('clientsTableBody').innerHTML = '<tr><td colspan="5" class="no-data">Erreur de chargement</td></tr>';
-  }
-}
-
-async function archiverClientPrompt(clientId) {
-  const raison = prompt('Raison de l\'archivage ?');
-  if (raison === null) return;
-  
-  if (await archiverClient(clientId, raison)) {
-    alert('Client archivé avec succès !');
-    loadClients(); // Recharger la liste
-  }
-}
-/*    AFFICHAGE ET COPIE DES CLIENTS    */
 
 function displayClients(){
   const tbody = document.getElementById('clientsTableBody');
@@ -1236,114 +581,157 @@ function displayClients(){
   </tr>
 `).join('');
 
-  // Seulement navigation
   setupClientRowNavigation();
 }
-function setupCopyToClipboard() {
-  const tbody = document.getElementById('clientsTableBody');
-  if (!tbody) return;
-  
-  // SUPPRIMER l'ancien écouteur de copie
-  tbody.removeEventListener('dblclick', handleTableCellDoubleClick);
-  
-  // NOUVEL écouteur pour navigation
-  tbody.addEventListener('dblclick', handleClientNavigation);
+
+// Gestion des actions clients
+document.addEventListener('click', (e) => {
+  const btnView = e.target.closest('.action-view');
+  if (btnView) {
+    e.preventDefault();
+    handleClientAction('view', btnView);
+    return;
+  }
+
+  const btnEdit = e.target.closest('.action-edit');
+  if (btnEdit) {
+    e.preventDefault();
+    handleClientAction('edit', btnEdit);
+    return;
+  }
+
+  const btnAffect = e.target.closest('.action-affect');
+  if (btnAffect) {
+    e.preventDefault();
+    handleClientAction('affect', btnAffect);
+    return;
+  }
+
+  const btnArchive = e.target.closest('.action-archive');
+  if (btnArchive) {
+    e.preventDefault();
+    handleClientAction('archive', btnArchive);
+    return;
+  }
+});
+
+function handleClientAction(action, buttonElement) {
+  const row = buttonElement.closest('tr.client-row');
+  const clientId = row?.dataset.clientId;
+  if (!clientId) return;
+
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+
+  if (action === 'archive') {
+    archiverClientPrompt(clientId);
+    return;
+  }
+
+  const actionConfig = {
+    'view': {
+      tab: 'consulter-un-client',
+      selectId: 'viewClientSelect',
+      handler: handleViewClientSelection,
+      page: 'clients'
+    },
+    'edit': {
+      tab: 'modifier', 
+      selectId: 'editClientSelect',
+      handler: handleEditClientSelection,
+      page: 'clients'
+    },
+    'affect': {
+      tab: 'affectation',
+      selectId: 'clientSelection',
+      handler: loadAffectationChecklist,
+      page: 'declarations'
+    }
+  };
+
+  const config = actionConfig[action];
+  if (!config) return;
+
+  navigateToTargetPage(config.page, config.tab);
+
+  setTimeout(() => {
+    selectClientInDropdown(config.selectId, clientId, client);
+    
+    if (config.handler) {
+      setTimeout(() => {
+        config.handler(clientId);
+      }, 200);
+    }
+  }, 150);
+
+  closeActionDropdown(buttonElement);
 }
 
-function handleClientNavigation(e) {
-  const cell = e.target.closest('td');
-  if (!cell) return;
+function navigateToTargetPage(pageName, tabName) {
+  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   
-  // Ne pas naviguer sur les badges de statut
-  if (cell.querySelector('.statut-badge')) return;
-  
-  const row = cell.closest('tr');
-  const clientId = row.getAttribute('data-client-id');
-  
-  if (clientId) {
-    // 1. Aller à l'onglet "Consulter un client"
+  document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+  document.getElementById(pageName).classList.add('active');
+
+  if (pageName === 'clients') {
     document.querySelectorAll('#clients .tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('#clients .tab-content').forEach(c => c.classList.remove('active'));
     
-    document.querySelector('#clients .tab[data-tab="consulter-un-client"]').classList.add('active');
-    document.getElementById('consulter-un-client').classList.add('active');
+    document.querySelector(`#clients .tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+  } else if (pageName === 'declarations') {
+    document.querySelectorAll('#declarations .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#declarations .tab-content').forEach(c => c.classList.remove('active'));
     
-    // 2. Sélectionner le client dans le dropdown
-    const selectElement = document.getElementById('viewClientSelect');
-    const selectedDiv = selectElement.querySelector('.select-selected');
-    const client = clients.find(c => c.id === clientId);
-    
-    if (client) {
-      selectedDiv.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
-      selectedDiv.setAttribute('data-client-id', clientId);
-      
-      // 3. Déclencher l'affichage des infos
-      handleViewClientSelection(clientId);
-    }
+    document.querySelector(`#declarations .tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
   }
 }
 
-function handleTableCellDoubleClick(e) {
-  const cell = e.target.closest('td');
-  if (!cell) return;
-  
-  // Ne pas copier les cellules avec badges de statut
-  if (cell.querySelector('.statut-badge')) return;
-  
-  const text = cell.textContent.trim();
-  if (!text || text === '-') return;
-  
-  copyCellContent(cell);
+function selectClientInDropdown(selectId, clientId, client) {
+  const selectElement = document.getElementById(selectId);
+  if (!selectElement) return;
+
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  if (!selectedDiv) return;
+
+  selectedDiv.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
+  selectedDiv.setAttribute('data-client-id', clientId);
+
+  updateCustomSelectOptions(selectId, clientId);
+  triggerSelectionEvent(selectId, clientId);
 }
-function copyCellContent(cell) {
-  const text = cell.textContent.trim();
-  if (!text || text === '-') return;
-  
-  navigator.clipboard.writeText(text).then(() => {
-    // Feedback visuel
-    cell.classList.add('copied');
-    setTimeout(() => {
-      cell.classList.remove('copied');
-    }, 2000);
-  }).catch(err => {
-    console.error('Erreur lors de la copie:', err);
-    // Fallback pour les navigateurs qui ne supportent pas clipboard API
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
-    
-    cell.classList.add('copied');
-    setTimeout(() => {
-      cell.classList.remove('copied');
-    }, 2000);
+
+function triggerSelectionEvent(selectId, clientId) {
+  if (selectId === 'clientSelection') {
+    console.log('🚀 Déclenchement loadAffectationChecklist pour:', clientId);
+  }
+}
+
+function updateCustomSelectOptions(selectId, selectedClientId) {
+  const selectElement = document.getElementById(selectId);
+  if (!selectElement) return;
+
+  const optionsContainer = selectElement.querySelector('.select-options');
+  if (!optionsContainer) return;
+
+  const allOptions = optionsContainer.querySelectorAll('div[data-client-id]');
+  allOptions.forEach(option => {
+    if (option.getAttribute('data-client-id') === selectedClientId) {
+      option.classList.add('same-as-selected');
+    } else {
+      option.classList.remove('same-as-selected');
+    }
   });
 }
-function formatDateForInput(dateString) {
-    if (!dateString) return '';
-    
-    // Si la date est déjà au format YYYY-MM-DD, la retourner telle quelle
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return dateString;
-    }
-    
-    // Sinon, essayer de parser la date
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    
-    // Formater en YYYY-MM-DD pour l'input date
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-}
-/* =========================
-   GESTION DU FORMULAIRE AJOUTER
-   ========================= */
 
+function closeActionDropdown(buttonElement) {
+  const dropdown = buttonElement.closest('.dropdown-content');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+// Gestion formulaire ajouter client
 function setupAddClientForm() {
   const form = document.getElementById('addClientForm');
   if (!form) return;
@@ -1353,10 +741,7 @@ function setupAddClientForm() {
     await handleAddClient();
   });
   
-  // Reset du formulaire quand on change d'onglet
-  form.addEventListener('reset', () => {
-    form.reset();
-  });
+  form.addEventListener('reset', () => form.reset());
 }
 
 async function handleAddClient() {
@@ -1403,11 +788,7 @@ async function handleAddClient() {
     
     alert('Client enregistré avec succès !'); 
     form.reset();
-    
-    // Recharger les clients
     await loadClients();
-    
-    // Basculer vers l'onglet consultation
     document.querySelector('#clients .tab[data-tab="consulter"]').click();
     
   } catch (error) {
@@ -1415,203 +796,8 @@ async function handleAddClient() {
     alert('Erreur lors de l\'enregistrement du client');
   }
 }
-// =====================================================
-// 🎯 GESTION UNIFIÉE DES ACTIONS CLIENTS
-// =====================================================
 
-// Supprimer l'ancien gestionnaire et utiliser celui-ci
-document.addEventListener('click', (e) => {
-  // Gestion CONSULTER
-  const btnView = e.target.closest('.action-view');
-  if (btnView) {
-    e.preventDefault();
-    handleClientAction('view', btnView);
-    return;
-  }
-
-  // Gestion MODIFIER
-  const btnEdit = e.target.closest('.action-edit');
-  if (btnEdit) {
-    e.preventDefault();
-    handleClientAction('edit', btnEdit);
-    return;
-  }
-
-  // Gestion AFFECTER DÉCLARATIONS
-  const btnAffect = e.target.closest('.action-affect');
-  if (btnAffect) {
-    e.preventDefault();
-    handleClientAction('affect', btnAffect);
-    return;
-  }
-});
-
-// Fonction principale de gestion des actions
-function handleClientAction(action, buttonElement) {
-  const row = buttonElement.closest('tr.client-row');
-  const clientId = row?.dataset.clientId;
-  if (!clientId) return;
-
-  const client = clients.find(c => c.id === clientId);
-  if (!client) return;
-
-  // Mapping des actions vers les pages
-  const actionConfig = {
-    'view': {
-      tab: 'consulter-un-client',
-      selectId: 'viewClientSelect',
-      handler: handleViewClientSelection,
-      page: 'clients'
-    },
-    'edit': {
-      tab: 'modifier', 
-      selectId: 'editClientSelect',
-      handler: handleEditClientSelection,
-      page: 'clients'
-    },
-    'affect': {
-      tab: 'affectation',
-      selectId: 'clientSelection',
-      handler: loadAffectationChecklist,
-      page: 'declarations' // ← CORRECTION : Page DÉCLARATIONS
-    }
-  };
-
-  const config = actionConfig[action];
-  if (!config) return;
-
-  // 1. Navigation vers la page cible (Clients ou Déclarations)
-  navigateToTargetPage(config.page, config.tab);
-
-  // 2. Sélectionner le client dans le dropdown
-  setTimeout(() => {
-    selectClientInDropdown(config.selectId, clientId, client);
-    
-    // 3. Appeler le handler spécifique après la sélection
-    if (config.handler) {
-      setTimeout(() => {
-        config.handler(clientId);
-      }, 200);
-    }
-  }, 150);
-
-  // 4. Fermer le menu dropdown
-  closeActionDropdown(buttonElement);
-}
-
-// Navigation vers la page cible (Clients ou Déclarations)
-function navigateToTargetPage(pageName, tabName) {
-  // Navigation vers la page principale
-  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  
-  document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
-  document.getElementById(pageName).classList.add('active');
-
-  // Navigation vers l'onglet spécifique
-  if (pageName === 'clients') {
-    document.querySelectorAll('#clients .tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('#clients .tab-content').forEach(c => c.classList.remove('active'));
-    
-    document.querySelector(`#clients .tab[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(tabName).classList.add('active');
-  } else if (pageName === 'declarations') {
-    document.querySelectorAll('#declarations .tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('#declarations .tab-content').forEach(c => c.classList.remove('active'));
-    
-    document.querySelector(`#declarations .tab[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(tabName).classList.add('active');
-  }
-}
-
-// Sélectionner le client dans le dropdown
-function selectClientInDropdown(selectId, clientId, client) {
-  const selectElement = document.getElementById(selectId);
-  if (!selectElement) {
-    console.error(`Dropdown ${selectId} non trouvé`);
-    return;
-  }
-
-  const selectedDiv = selectElement.querySelector('.select-selected');
-  if (!selectedDiv) {
-    console.error('Element .select-selected non trouvé');
-    return;
-  }
-
-  // Mettre à jour l'affichage ET l'attribut data-client-id
-  selectedDiv.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
-  selectedDiv.setAttribute('data-client-id', clientId);
-
-  console.log(`✅ Client sélectionné dans ${selectId}:`, client.nom_raison_sociale);
-  
-  // Mettre à jour les options du selecteur
-  updateCustomSelectOptions(selectId, clientId);
-  
-  // FORCER le déclenchement de l'événement de sélection
-  triggerSelectionEvent(selectId, clientId);
-}
-
-// Déclencher l'événement de sélection pour les handlers
-function triggerSelectionEvent(selectId, clientId) {
-  // Pour le selecteur d'affectation des déclarations
-  if (selectId === 'clientSelection') {
-    console.log('🚀 Déclenchement loadAffectationChecklist pour:', clientId);
-    // Le handler sera appelé automatiquement via l'observateur MutationObserver
-  }
-}
-
-// Mettre à jour les options du selecteur custom
-function updateCustomSelectOptions(selectId, selectedClientId) {
-  const selectElement = document.getElementById(selectId);
-  if (!selectElement) return;
-
-  const optionsContainer = selectElement.querySelector('.select-options');
-  if (!optionsContainer) return;
-
-  // Mettre à jour la classe active sur l'option sélectionnée
-  const allOptions = optionsContainer.querySelectorAll('div[data-client-id]');
-  allOptions.forEach(option => {
-    if (option.getAttribute('data-client-id') === selectedClientId) {
-      option.classList.add('same-as-selected');
-    } else {
-      option.classList.remove('same-as-selected');
-    }
-  });
-}
-
-// Fermer le menu dropdown
-function closeActionDropdown(buttonElement) {
-  const dropdown = buttonElement.closest('.dropdown-content');
-  if (dropdown) {
-    dropdown.style.display = 'none';
-  }
-}
-
-// =====================================================
-// 🎯 GESTION SPÉCIFIQUE POUR ARCHIVER (existant - à garder)
-// =====================================================
-document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('.action-archive');
-  if (!btn) return;
-  e.preventDefault();
-
-  const row = btn.closest('tr');
-  const clientId = row?.dataset.clientId;
-  if (!clientId) return;
-
-  const raison = prompt('Raison de l\'archivage ?');
-  if (raison === null) return;
-
-  if (await archiverClient(clientId, raison)) {
-    alert('✅ Client archivé avec succès !');
-    loadClients(); // Recharger la liste
-  }
-});
-
-/* =========================
-   GESTION DU FORMULAIRE MODIFIER
-   ========================= */
-
+// Gestion formulaire modifier client
 function setupEditClientForm() {
   const form = document.getElementById('editClientForm');
   if (!form) return;
@@ -1626,7 +812,6 @@ function populateEditClientSelect() {
   populateCustomSelect('editClientSelect', clients, null, false);
 }
 
-// Gérer la sélection d'un client à modifier
 function handleEditClientSelection(clientId) {
   const editFormContainer = document.getElementById('editFormContainer');
   const editPlaceholder = document.getElementById('editPlaceholder');
@@ -1640,9 +825,7 @@ function handleEditClientSelection(clientId) {
   const client = clients.find(c => c.id === clientId);
   if (!client) return;
   
-  // Remplir le formulaire avec les données du client
   fillEditForm(client);
-  
   editFormContainer.style.display = 'block';
   editPlaceholder.style.display = 'none';
 }
@@ -1672,7 +855,6 @@ function fillEditForm(client) {
   setValue('editContact', client.contact);
   setValue('editCodeClient', client.code_client);
   
-  // Stocker l'ID du client en cours de modification
   document.getElementById('editClientForm').setAttribute('data-client-id', client.id);
 }
 
@@ -1725,11 +907,7 @@ async function handleEditClient() {
     }
     
     alert('Client modifié avec succès !'); 
-    
-    // Recharger les clients
     await loadClients();
-    
-    // Basculer vers l'onglet consultation
     document.querySelector('#clients .tab[data-tab="consulter"]').click();
     
   } catch (error) {
@@ -1745,7 +923,6 @@ function cancelEdit() {
   editFormContainer.style.display = 'none';
   editPlaceholder.style.display = 'block';
   
-  // Réinitialiser le select
   const selectElement = document.getElementById('editClientSelect');
   if (selectElement) {
     const selectedDiv = selectElement.querySelector('.select-selected');
@@ -1753,14 +930,13 @@ function cancelEdit() {
     selectedDiv.removeAttribute('data-client-id');
   }
 }
-// Ajouter la gestion du selecteur de modification
+
 function setupEditClientSelect() {
   const selectElement = document.getElementById('editClientSelect');
   if (!selectElement) return;
   
   setupCustomSelect(selectElement);
   
-  // Gérer le changement de sélection
   const selectedDiv = selectElement.querySelector('.select-selected');
   const observer = new MutationObserver(function(mutations) {
     mutations.forEach(function(mutation) {
@@ -1774,17 +950,13 @@ function setupEditClientSelect() {
   observer.observe(selectedDiv, { attributes: true });
 }
 
-/* =========================
-   ONGLET CONSULTER UN CLIENT
-   ========================= */
-
+// Onglet consulter un client
 function setupViewClientSelect() {
   const selectElement = document.getElementById('viewClientSelect');
   if (!selectElement) return;
   
   setupCustomSelect(selectElement);
   
-  // Gérer le changement de sélection
   const selectedDiv = selectElement.querySelector('.select-selected');
   const observer = new MutationObserver(function(mutations) {
     mutations.forEach(function(mutation) {
@@ -1811,92 +983,53 @@ function handleViewClientSelection(clientId) {
   const client = clients.find(c => c.id === clientId);
   if (!client) return;
   
-  // Remplir le formulaire avec les données du client
   fillViewForm(client);
-  
   viewFormContainer.style.display = 'block';
   viewPlaceholder.style.display = 'none';
-  
-  // Activer la copie par double-clic
   setupViewFormCopy();
-  
 }
 
-// =========================
-// FONCTION DE FORMATAGE DES DATES
-// =========================
-function formatDateForInput(dateString) {
-    if (!dateString) return '';
-    
-    // Si la date est déjà au format YYYY-MM-DD, la retourner telle quelle
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return dateString;
-    }
-    
-    // Sinon, essayer de parser la date
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    
-    // Formater en YYYY-MM-DD pour l'input date
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
-}
-
-// =========================
-// FONCTION FILLVIEWFORM CORRIGÉE
-// =========================
 function fillViewForm(client) {
-    const setValue = (id, value) => {
-        const element = document.getElementById(id);
-        if (element) {
-            // Gestion spéciale pour les champs date
-            if (id.includes('Date') && element.type === 'date') {
-                element.value = formatDateForInput(value);
-            } else {
-                element.value = value || '';
-            }
-        }
-    };
-    
-    // Remplir tous les champs
-    setValue('viewNom', client.nom_raison_sociale);
-    setValue('viewIce', client.ice);
-    setValue('viewDateCreation', client.date_creation); // ← CORRIGÉ
-    setValue('viewSiegeSocial', client.siege_social);
-    setValue('viewVille', client.ville);
-    setValue('viewActivite', client.activite);
-    setValue('viewIdentifiantFiscal', client.identifiant_fiscal);
-    setValue('viewTaxeProfessionnelle', client.taxe_professionnelle);
-    setValue('viewRegistreCommerce', client.registre_commerce);
-    setValue('viewCnss', client.cnss);
-    setValue('viewRib', client.rib);
-    setValue('viewEmail', client.email);
-    setValue('viewNomGerant', client.nom_gerant);
-    setValue('viewCinGerant', client.cin_gerant);
-    setValue('viewAdresseGerant', client.adresse_gerant);
-    setValue('viewDateNaissance', client.date_naissance); // ← CORRIGÉ
-    setValue('viewContact', client.contact);
-    setValue('viewCodeClient', client.code_client);
+  const setValue = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) {
+      if (id.includes('Date') && element.type === 'date') {
+        element.value = formatDateForInput(value);
+      } else {
+        element.value = value || '';
+      }
+    }
+  };
+  
+  setValue('viewNom', client.nom_raison_sociale);
+  setValue('viewIce', client.ice);
+  setValue('viewDateCreation', client.date_creation);
+  setValue('viewSiegeSocial', client.siege_social);
+  setValue('viewVille', client.ville);
+  setValue('viewActivite', client.activite);
+  setValue('viewIdentifiantFiscal', client.identifiant_fiscal);
+  setValue('viewTaxeProfessionnelle', client.taxe_professionnelle);
+  setValue('viewRegistreCommerce', client.registre_commerce);
+  setValue('viewCnss', client.cnss);
+  setValue('viewRib', client.rib);
+  setValue('viewEmail', client.email);
+  setValue('viewNomGerant', client.nom_gerant);
+  setValue('viewCinGerant', client.cin_gerant);
+  setValue('viewAdresseGerant', client.adresse_gerant);
+  setValue('viewDateNaissance', client.date_naissance);
+  setValue('viewContact', client.contact);
+  setValue('viewCodeClient', client.code_client);
 }
 
 function setupViewFormCopy() {
   const form = document.getElementById('viewClientForm');
   if (!form) return;
   
-  // Sélectionner tous les inputs du formulaire de consultation
   const inputs = form.querySelectorAll('input');
   
   inputs.forEach(input => {
-    // Retirer les anciens événements pour éviter les doublons
     input.removeEventListener('dblclick', handleViewFieldCopy);
-    
-    // Ajouter l'événement double-clic
     input.addEventListener('dblclick', handleViewFieldCopy);
-    
-    // Style pour indiquer que c'est copiable
     input.style.cursor = 'pointer';
     input.title = 'Double-cliquez pour copier';
   });
@@ -1908,14 +1041,12 @@ function handleViewFieldCopy(event) {
   
   if (!text) return;
   
-  // FORCER la sélection et la copie
   input.select();
-  input.setSelectionRange(0, 99999); // Pour mobile
+  input.setSelectionRange(0, 99999);
   
   navigator.clipboard.writeText(text).then(() => {
     console.log('Champ copié:', text);
     
-    // Feedback visuel
     input.style.backgroundColor = 'var(--success-color)';
     input.style.color = 'white';
     
@@ -1925,94 +1056,183 @@ function handleViewFieldCopy(event) {
     }, 500);
   }).catch(err => {
     console.error('Erreur copie:', err);
-    // Fallback
     document.execCommand('copy');
   });
 }
 
-// Fonction utilitaire pour copier
-function copyToClipboard(text, feedback = 'Copié !') {
-  navigator.clipboard.writeText(text).then(() => {
-    console.log(feedback + ': ' + text);
-  }).catch(err => {
-    console.error('Erreur copie:', err);
-    // Fallback
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
-  });
+// Gestion archives clients
+async function archiverClient(clientId, raison) {
+  try {
+    const { error } = await supabase.rpc('archiver_client', {
+      client_id: clientId,
+      utilisateur_id: currentUser.id,
+      raison: raison
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Erreur archivage:', error);
+    alert('Erreur lors de l\'archivage: ' + error.message);
+    return false;
+  }
 }
 
-/* =========================
-   FONCTIONS MANQUANTES CLIENTS
-   ========================= */
-
-function updateClientSelection(){
-  populateCustomSelect('clientSelection', clients, null, false);
+async function archiverClientPrompt(clientId) {
+  const raison = prompt('Raison de l\'archivage ?');
+  if (raison === null) return;
+  
+  if (await archiverClient(clientId, raison)) {
+    alert('Client archivé avec succès !');
+    loadClients();
+  }
 }
 
-function updateFiltreClient(){
-  populateCustomSelect('filtreClient', clients, 'tous', true);
+async function restaurerClient(archiveId) {
+  try {
+    const { error } = await supabase.rpc('restaurer_client', {
+      archive_id: archiveId,
+      utilisateur_id: currentUser.id
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Erreur restauration:', error);
+    alert('Erreur lors de la restauration: ' + error.message);
+    return false;
+  }
 }
 
-function fillHonorairesClients(list){
-  const data = list || clients;
-  populateCustomSelect('honorairesClientSelect', data, honosClientId, false);
+async function supprimerClientDefinitif(archiveId) {
+  if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce client ? Cette action est irréversible.')) {
+    return false;
+  }
+  
+  try {
+    const { error } = await supabase.rpc('supprimer_client_definitif', {
+      archive_id: archiveId,
+      utilisateur_id: currentUser.id
+    });
+    
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Erreur suppression:', error);
+    alert('Erreur lors de la suppression: ' + error.message);
+    return false;
+  }
 }
 
-
-// =========================
-// GÉNÉRATION FICHE CLIENT PDF
-// =========================
-
-// Initialisation de l'événement
-document.addEventListener('DOMContentLoaded', function() {
-    const btnImprimer = document.getElementById('btnImprimerFicheClient');
-    if (btnImprimer) {
-        btnImprimer.addEventListener('click', genererFicheClientPDF);
+async function loadClientsArchives() {
+  try {
+    console.log('📁 Chargement des clients archivés...');
+    
+    const { data, error } = await supabase
+      .from('clients_archives')
+      .select('*')
+      .order('archived_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    console.log(`✅ ${data?.length || 0} clients archivés chargés`);
+    displayClientsArchives(data || []);
+    
+  } catch (error) {
+    console.error('❌ Erreur chargement archives:', error);
+    const tbody = document.getElementById('archivesTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="5" class="no-data">Erreur de chargement des archives</td></tr>';
     }
+  }
+}
+
+function displayClientsArchives(archives) {
+  const tbody = document.getElementById('archivesTableBody');
+  
+  if (!tbody) return;
+  
+  if (!archives.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client archivé</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = archives.map(archive => `
+    <tr>
+      <td>${archive.nom_raison_sociale || 'Non renseigné'}</td>
+      <td>${archive.ice || '-'}</td>
+      <td>${archive.archived_at ? new Date(archive.archived_at).toLocaleDateString('fr-FR') : '-'}</td>
+      <td>${archive.raison_archivage || 'Non spécifiée'}</td>
+      <td class="actions">
+        <button class="btn-success" onclick="restaurerClientPrompt('${archive.id}')">
+          <i class="fas fa-undo"></i> Restaurer
+        </button>
+        <button class="btn-secondary" onclick="supprimerClientDefinitifPrompt('${archive.id}')">
+          <i class="fas fa-trash"></i> Supprimer
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function restaurerClientPrompt(archiveId) {
+  if (confirm('Êtes-vous sûr de vouloir restaurer ce client ?')) {
+    const success = await restaurerClient(archiveId);
+    if (success) {
+      alert('Client restauré avec succès !');
+      loadClientsArchives();
+    }
+  }
+}
+
+async function supprimerClientDefinitifPrompt(archiveId) {
+  if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce client ? Cette action est irréversible.')) {
+    const success = await supprimerClientDefinitif(archiveId);
+    if (success) {
+      alert('Client supprimé définitivement !');
+      loadClientsArchives();
+    }
+  }
+}
+
+// Impression fiche client
+document.addEventListener('DOMContentLoaded', function() {
+  const btnImprimer = document.getElementById('btnImprimerFicheClient');
+  if (btnImprimer) {
+    btnImprimer.addEventListener('click', genererFicheClientPDF);
+  }
 });
 
 function genererFicheClientPDF() {
-    const clientId = getSelectedClientId('viewClientSelect');
-    if (!clientId) {
-        alert('Veuillez sélectionner un client');
-        return;
-    }
+  const clientId = getSelectedClientId('viewClientSelect');
+  if (!clientId) {
+    alert('Veuillez sélectionner un client');
+    return;
+  }
 
-    const client = clients.find(c => c.id === clientId);
-    if (!client) {
-        alert('Client non trouvé');
-        return;
-    }
+  const client = clients.find(c => c.id === clientId);
+  if (!client) {
+    alert('Client non trouvé');
+    return;
+  }
 
-    // Créer le contenu HTML sophistiqué
-    const printContent = creerContenuFicheClient(client);
-    
-    // Ouvrir une nouvelle fenêtre pour l'impression
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    
-    // Attendre que le contenu soit chargé puis imprimer
-    printWindow.onload = function() {
-        printWindow.focus();
-        printWindow.print();
-        // printWindow.close(); // Décommentez pour fermer automatiquement après impression
-    };
+  const printContent = creerContenuFicheClient(client);
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  
+  printWindow.onload = function() {
+    printWindow.focus();
+    printWindow.print();
+  };
 }
 
 function creerContenuFicheClient(client) {
-    const dateGeneration = new Date().toLocaleDateString('fr-FR');
-    
-    // Déterminer le statut avec badge coloré
-    const statutClass = `statut-${client.statut || 'actif'}`;
-    const statutLabel = client.statut ? client.statut.charAt(0).toUpperCase() + client.statut.slice(1) : 'Actif';
+  const dateGeneration = new Date().toLocaleDateString('fr-FR');
+  const statutClass = `statut-${client.statut || 'actif'}`;
+  const statutLabel = client.statut ? client.statut.charAt(0).toUpperCase() + client.statut.slice(1) : 'Actif';
 
-    return `
+  return `
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -2020,293 +1240,77 @@ function creerContenuFicheClient(client) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fiche Client - ${client.nom_raison_sociale}</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 15mm;
-            background: white;
-            color: #1f2937;
-            line-height: 1.4;
-        }
-        
-        .fiche-client-simple {
-            max-width: 210mm;
-            margin: 0 auto;
-        }
-        
-        .fiche-entete {
-            text-align: center;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #2563eb;
-        }
-        
-        .fiche-titre-principal {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 0.25rem;
-        }
-        
-        .fiche-sous-titre {
-            color: #6b7280;
-            font-size: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        .fiche-cabinet {
-            font-size: 0.9rem;
-            color: #2563eb;
-            font-weight: 600;
-        }
-        
-        .fiche-tableau {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1.5rem;
-        }
-        
-        .fiche-tableau td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #e5e7eb;
-            vertical-align: top;
-        }
-        
-        .fiche-colonne-gauche {
-            width: 35%;
-            font-weight: 600;
-            color: #374151;
-            background-color: #f8fafc;
-        }
-        
-        .fiche-colonne-droite {
-            width: 65%;
-            color: #6b7280;
-        }
-        
-        .fiche-section-titre {
-            background: #2563eb;
-            color: white;
-            padding: 0.75rem;
-            font-weight: 600;
-            margin: 1.5rem 0 0.5rem 0;
-        }
-        
-        .fiche-signature {
-            margin-top: 3rem;
-            text-align: right;
-        }
-        
-        .fiche-ligne-signature {
-            border-top: 1px solid #374151;
-            width: 200px;
-            margin-left: auto;
-            margin-top: 2rem;
-            padding-top: 0.5rem;
-            text-align: center;
-            color: #6b7280;
-            font-size: 0.875rem;
-        }
-        
-        .fiche-pied {
-            margin-top: 2rem;
-            text-align: center;
-            color: #9ca3af;
-            font-size: 0.75rem;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 1rem;
-        }
-        
-        .statut-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        
-        .statut-actif {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        
-        .statut-inactif {
-            background: #fef3c7;
-            color: #92400e;
-        }
-        
-        .statut-archive {
-            background: #e5e7eb;
-            color: #374151;
-        }
-        
-        @page {
-            margin: 10mm;
-        }
-        
-        @media print {
-            body {
-                background: white !important;
-                margin: 0;
-                padding: 0;
-            }
-            
-            .fiche-client-simple {
-                margin: 0;
-                padding: 0;
-                box-shadow: none;
-            }
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 15mm; background: white; color: #1f2937; line-height: 1.4; }
+        .fiche-client-simple { max-width: 210mm; margin: 0 auto; }
+        .fiche-entete { text-align: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid #2563eb; }
+        .fiche-titre-principal { font-size: 1.8rem; font-weight: 700; color: #1f2937; margin-bottom: 0.25rem; }
+        .fiche-sous-titre { color: #6b7280; font-size: 1rem; margin-bottom: 1rem; }
+        .fiche-cabinet { font-size: 0.9rem; color: #2563eb; font-weight: 600; }
+        .fiche-tableau { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+        .fiche-tableau td { padding: 0.75rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        .fiche-colonne-gauche { width: 35%; font-weight: 600; color: #374151; background-color: #f8fafc; }
+        .fiche-colonne-droite { width: 65%; color: #6b7280; }
+        .fiche-section-titre { background: #2563eb; color: white; padding: 0.75rem; font-weight: 600; margin: 1.5rem 0 0.5rem 0; }
+        .statut-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+        .statut-actif { background: #d1fae5; color: #065f46; }
+        .statut-inactif { background: #fef3c7; color: #92400e; }
+        .statut-archive { background: #e5e7eb; color: #374151; }
+        @page { margin: 10mm; }
+        @media print { body { background: white !important; margin: 0; padding: 0; } .fiche-client-simple { margin: 0; padding: 0; box-shadow: none; } }
     </style>
 </head>
 <body>
     <div class="fiche-client-simple">
-        <!-- En-tête simplifié -->
         <div class="fiche-entete">
             <div class="fiche-cabinet">NEW FID - Cabinet Comptable Agréé</div>
             <h1 class="fiche-titre-principal">FICHE CLIENT</h1>
             <div class="fiche-sous-titre">${client.nom_raison_sociale}</div>
         </div>
         
-        <!-- Tableau à deux colonnes -->
         <table class="fiche-tableau">
-            <!-- Informations générales -->
-            <tr>
-                <td colspan="2" class="fiche-section-titre">INFORMATIONS GÉNÉRALES</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Raison Sociale</td>
-                <td class="fiche-colonne-droite">${client.nom_raison_sociale || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">ICE</td>
-                <td class="fiche-colonne-droite">${client.ice || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Date de Création</td>
-                <td class="fiche-colonne-droite">${formatDateForDisplay(client.date_creation) || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Siège Social</td>
-                <td class="fiche-colonne-droite">${client.siege_social || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Ville</td>
-                <td class="fiche-colonne-droite">${client.ville || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Activité</td>
-                <td class="fiche-colonne-droite">${client.activite || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Statut</td>
-                <td class="fiche-colonne-droite">
-                    <span class="statut-badge ${statutClass}">${statutLabel}</span>
-                </td>
-            </tr>
+            <tr><td colspan="2" class="fiche-section-titre">INFORMATIONS GÉNÉRALES</td></tr>
+            <tr><td class="fiche-colonne-gauche">Raison Sociale</td><td class="fiche-colonne-droite">${client.nom_raison_sociale || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">ICE</td><td class="fiche-colonne-droite">${client.ice || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Date de Création</td><td class="fiche-colonne-droite">${formatDateForDisplay(client.date_creation) || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Siège Social</td><td class="fiche-colonne-droite">${client.siege_social || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Ville</td><td class="fiche-colonne-droite">${client.ville || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Activité</td><td class="fiche-colonne-droite">${client.activite || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Statut</td><td class="fiche-colonne-droite"><span class="statut-badge ${statutClass}">${statutLabel}</span></td></tr>
             
-            <!-- Informations fiscales -->
-            <tr>
-                <td colspan="2" class="fiche-section-titre">INFORMATIONS FISCALES</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Identifiant Fiscal</td>
-                <td class="fiche-colonne-droite">${client.identifiant_fiscal || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Taxe Professionnelle</td>
-                <td class="fiche-colonne-droite">${client.taxe_professionnelle || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Registre de Commerce</td>
-                <td class="fiche-colonne-droite">${client.registre_commerce || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">CNSS</td>
-                <td class="fiche-colonne-droite">${client.cnss || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">RIB</td>
-                <td class="fiche-colonne-droite">${client.rib || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Code Client</td>
-                <td class="fiche-colonne-droite">${client.code_client || '-'}</td>
-            </tr>
+            <tr><td colspan="2" class="fiche-section-titre">INFORMATIONS FISCALES</td></tr>
+            <tr><td class="fiche-colonne-gauche">Identifiant Fiscal</td><td class="fiche-colonne-droite">${client.identifiant_fiscal || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Taxe Professionnelle</td><td class="fiche-colonne-droite">${client.taxe_professionnelle || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Registre de Commerce</td><td class="fiche-colonne-droite">${client.registre_commerce || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">CNSS</td><td class="fiche-colonne-droite">${client.cnss || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">RIB</td><td class="fiche-colonne-droite">${client.rib || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Code Client</td><td class="fiche-colonne-droite">${client.code_client || '-'}</td></tr>
             
-            <!-- Informations du gérant -->
-            <tr>
-                <td colspan="2" class="fiche-section-titre">INFORMATIONS DU GÉRANT</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Nom du Gérant</td>
-                <td class="fiche-colonne-droite">${client.nom_gerant || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">CIN du Gérant</td>
-                <td class="fiche-colonne-droite">${client.cin_gerant || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Adresse du Gérant</td>
-                <td class="fiche-colonne-droite">${client.adresse_gerant || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Date de Naissance</td>
-                <td class="fiche-colonne-droite">${formatDateForDisplay(client.date_naissance) || '-'}</td>
-            </tr>
+            <tr><td colspan="2" class="fiche-section-titre">INFORMATIONS DU GÉRANT</td></tr>
+            <tr><td class="fiche-colonne-gauche">Nom du Gérant</td><td class="fiche-colonne-droite">${client.nom_gerant || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">CIN du Gérant</td><td class="fiche-colonne-droite">${client.cin_gerant || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Adresse du Gérant</td><td class="fiche-colonne-droite">${client.adresse_gerant || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Date de Naissance</td><td class="fiche-colonne-droite">${formatDateForDisplay(client.date_naissance) || '-'}</td></tr>
             
-            <!-- Contact -->
-            <tr>
-                <td colspan="2" class="fiche-section-titre">CONTACT</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Email</td>
-                <td class="fiche-colonne-droite">${client.email || '-'}</td>
-            </tr>
-            <tr>
-                <td class="fiche-colonne-gauche">Téléphone</td>
-                <td class="fiche-colonne-droite">${client.contact || '-'}</td>
-            </tr>
+            <tr><td colspan="2" class="fiche-section-titre">CONTACT</td></tr>
+            <tr><td class="fiche-colonne-gauche">Email</td><td class="fiche-colonne-droite">${client.email || '-'}</td></tr>
+            <tr><td class="fiche-colonne-gauche">Téléphone</td><td class="fiche-colonne-droite">${client.contact || '-'}</td></tr>
         </table>
         
-        <!-- Signature -->
         <div class="fiche-signature">
-            <div class="fiche-ligne-signature">
-                Signature et cachet
-            </div>
+            <div class="fiche-ligne-signature">Signature et cachet</div>
         </div>
         
-        <!-- Pied de page minimal -->
-        <div class="fiche-pied">
-            Document généré le ${dateGeneration}
-        </div>
+        <div class="fiche-pied">Document généré le ${dateGeneration}</div>
     </div>
 </body>
 </html>
     `;
 }
 
-// Fonction utilitaire pour formater les dates en français
-function formatDateForDisplay(dateString) {
-    if (!dateString) return '';
-    
-    try {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        
-        return date.toLocaleDateString('fr-FR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    } catch (error) {
-        return dateString;
-    }
-}
 /* =========================
-   DECLARATIONS
+   FONCTIONS GESTION DÉCLARATIONS
    ========================= */
+
 async function loadDeclarationTypes(){
   try{
     const {data, error} = await supabase.from('declaration_types').select('*').order('type_declaration, mois_reference, trimestre_reference');
@@ -2373,32 +1377,185 @@ function setupDeclarationsTabs(){
       tab.classList.add('active'); 
       document.getElementById(target).classList.add('active');
       
-      if(target === 'catalogue') loadCatalogue();
-      if(target === 'affectation') loadAffectationChecklist();
       if(target === 'echeances') loadEcheancesTable();
+      if(target === 'affectation') loadAffectationChecklist();
+      if(target === 'catalogue') loadCatalogue();
     });
   });
 }
 
+function loadAffectationChecklist(clientId = null){
+  const container = document.getElementById('checklistContent');
+  const targetClientId = clientId || getSelectedClientId('clientSelection');
+  const annee = document.getElementById('anneeAffectation').value;
+  const btn = document.getElementById('affecterDeclarationsBtn');
 
+  if(!targetClientId || targetClientId === 'tous') {
+    container.innerHTML = '<div class="no-data">Sélectionnez un client</div>'; 
+    btn.style.display = 'none'; 
+    return;
+  }
+  
+  btn.style.display = 'block';
+  const declAffect = clientDeclarations.filter(cd => cd.client_id === targetClientId && cd.annee_comptable == annee);
+  
+  const has = (s, ...qs) => (s ? qs.some(q => s.toLowerCase().includes(q.toLowerCase())) : false);
+  const isP = (d, p) => (d.periodicite || '').toLowerCase() === p;
+
+  const sections = [
+    { title: 'CNSS', id: 'cnss', match: d => d.type_declaration === 'CNSS' || has(d.nom_template, 'cnss') },
+    { title: 'TVA Mensuelle', id: 'tva_mensuelle', match: d => isP(d, 'mensuelle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva')) },
+    { title: 'RAS IR/Salaires', id: 'ras_ir_salaires', match: d => has(d.type_declaration, 'ir') || has(d.nom_template, 'ir/salaire', 'ir salaire', 'traitements', 'salaires') },
+    { title: 'RAS Sur Loyer', id: 'ras_loyer', match: d => has(d.type_declaration, 'ras', 'loyer') || has(d.nom_template, 'ras/loyer', 'ras loyer', 'loyer') },
+    { title: 'IS - Acomptes', id: 'is_acomptes', match: d => d.type_declaration === 'IS' && has(d.nom_template, 'acompte', 'premier', 'deuxième', 'troisième', 'quatrième', 't1', 't2', 't3', 't4') },
+    { title: 'TVA Trimestrielle', id: 'tva_trimestrielle', match: d => isP(d, 'trimestrielle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva')) },
+    { title: 'Délais de Paiement', id: 'delais_paiement', match: d => has(d.nom_template, 'délai', 'delai', 'paiement') },
+    { title: 'IS - Déclarations Annuelles', id: 'is_annuelles', match: d => isP(d, 'annuelle') && d.type_declaration === 'IS' },
+    { title: 'IR - Déclarations Annuelles', id: 'ir_annuelles', match: d => isP(d, 'annuelle') && d.type_declaration === 'IR' }
+  ];
+
+  const html = sections.map(sec => {
+    const items = declarationTypes.filter(sec.match);
+    if(!items.length) return '';
+    
+    const total = items.length;
+    const nbCochees = items.filter(decl => declAffect.some(cd => cd.declaration_type_id === decl.id)).length;
+    const all = nbCochees === total, some = nbCochees > 0 && nbCochees < total;
+    
+    const itemsHtml = items.map(decl => {
+      const checked = declAffect.some(cd => cd.declaration_type_id === decl.id);
+      const d1 = calculerDateReellePourDecl(decl, decl.date_debut_template, annee);
+      const d2 = calculerDateReellePourDecl(decl, decl.date_fin_template, annee);
+      
+      return `
+        <div class="declaration-item" data-declaration-id="${decl.id}">
+          <label>
+            <input type="checkbox" class="item-checkbox" ${checked ? 'checked' : ''} data-declaration-id="${decl.id}">
+            <div class="declaration-info">
+              <div class="declaration-name">${decl.nom_template}</div>
+              <div class="declaration-dates">${d1.toLocaleDateString('fr-FR')} - ${d2.toLocaleDateString('fr-FR')}</div>
+            </div>
+          </label>
+        </div>`;
+    }).join('');
+    
+    return `
+      <div class="category-accordion" data-category="${sec.id}">
+        <div class="category-header">
+          <div class="category-title-section">
+            <input type="checkbox" class="category-checkbox" ${all ? 'checked' : ''} ${some ? 'data-indeterminate="1"' : ''} data-category="${sec.id}">
+            <h3 class="category-title">${sec.title}</h3>
+          </div>
+          <div class="category-stats">
+            <span class="stats-count">${nbCochees}/${total}</span>
+            <div class="accordion-arrow">
+              <i class="fas fa-chevron-down"></i>
+            </div>
+          </div>
+        </div>
+        <div class="category-content">
+          ${itemsHtml}
+        </div>
+      </div>`;
+  }).filter(html => html !== '').join('');
+
+  container.innerHTML = html || '<div class="no-data">Aucune déclaration disponible</div>';
+  initializeAccordions();
+  setupCheckboxHandlers(container);
+  updatePrintButton();
+}
+
+function initializeAccordions() {
+  const accordions = document.querySelectorAll('.category-accordion');
+  
+  accordions.forEach(accordion => {
+    const header = accordion.querySelector('.category-header');
+    const content = accordion.querySelector('.category-content');
+    const arrow = accordion.querySelector('.accordion-arrow i');
+    
+    content.style.display = 'none';
+    arrow.classList.remove('fa-chevron-up');
+    arrow.classList.add('fa-chevron-down');
+    
+    header.addEventListener('click', function(e) {
+      if (e.target.type === 'checkbox') return;
+      
+      accordions.forEach(otherAccordion => {
+        if (otherAccordion !== accordion) {
+          const otherContent = otherAccordion.querySelector('.category-content');
+          const otherArrow = otherAccordion.querySelector('.accordion-arrow i');
+          otherContent.style.display = 'none';
+          otherArrow.classList.remove('fa-chevron-up');
+          otherArrow.classList.add('fa-chevron-down');
+        }
+      });
+      
+      const isOpen = content.style.display === 'block';
+      content.style.display = isOpen ? 'none' : 'block';
+      arrow.classList.toggle('fa-chevron-up', !isOpen);
+      arrow.classList.toggle('fa-chevron-down', isOpen);
+    });
+  });
+}
+
+function setupCheckboxHandlers(container) {
+  container.querySelectorAll('.category-checkbox[data-indeterminate="1"]').forEach(cb => cb.indeterminate = true);
+
+  container.addEventListener('change', (e) => {
+    const t = e.target;
+    
+    if(t.classList.contains('category-checkbox')) {
+      const categoryId = t.getAttribute('data-category');
+      const categoryAccordion = container.querySelector(`.category-accordion[data-category="${categoryId}"]`);
+      categoryAccordion.querySelectorAll('.item-checkbox').forEach(i => i.checked = t.checked);
+      t.indeterminate = false;
+      updateCategoryStats(categoryAccordion);
+    }
+    
+    if(t.classList.contains('item-checkbox')) {
+      const categoryAccordion = t.closest('.category-accordion');
+      const items = [...categoryAccordion.querySelectorAll('.item-checkbox')];
+      const checked = items.filter(i => i.checked).length;
+      const total = items.length;
+      const categoryCb = categoryAccordion.querySelector('.category-checkbox');
+      
+      if(checked === 0) {
+        categoryCb.checked = false;
+        categoryCb.indeterminate = false;
+      } else if(checked === total) {
+        categoryCb.checked = true;
+        categoryCb.indeterminate = false;
+      } else {
+        categoryCb.checked = false;
+        categoryCb.indeterminate = true;
+      }
+      
+      updateCategoryStats(categoryAccordion);
+    }
+  });
+}
+
+function updateCategoryStats(categoryAccordion) {
+  const items = categoryAccordion.querySelectorAll('.item-checkbox');
+  const checked = [...items].filter(i => i.checked).length;
+  const total = items.length;
+  const statsCount = categoryAccordion.querySelector('.stats-count');
+  
+  if (statsCount) statsCount.textContent = `${checked}/${total}`;
+}
 
 function doitBasculerNPlus1(decl){
   const p = (decl.periodicite || '').toLowerCase();
   const type = (decl.type_declaration || '').toLowerCase();
   const nom = (decl.nom_template || '').toLowerCase();
   
-  // RÈGLE SPÉCIALE : 4ème acompte IS reste en N
   const is4emeAcompteIS = (
     type.includes('is') && 
     (nom.includes('quatrième') || nom.includes('4ème') || nom.includes('quatrieme') || nom.includes('4eme')) &&
     (nom.includes('acompte') || p === 'trimestrielle')
   );
   
-  if (is4emeAcompteIS) {
-    return false;
-  }
-  
-  // RÈGLES GÉNÉRALES
+  if (is4emeAcompteIS) return false;
   if (p === 'annuelle') return true;
   if (p === 'trimestrielle' && decl.trimestre_reference === 4) return true;
   if (p === 'mensuelle' && decl.mois_reference === 12) return true;
@@ -2413,14 +1570,7 @@ function calculerDateReellePourDecl(decl, dateTemplate, annee){
   let y = parseInt(annee, 10);
   
   const bascule = doitBasculerNPlus1(decl);
-  if (bascule) {
-    y += 1;
-  }
-  
-  // Log pour debug
-  if (decl.type_declaration.includes('IS') && decl.nom_template.includes('acompte')) {
-    console.log(`📅 ${decl.nom_template}: ${dateTemplate} → ${y}-${mS}-${jS} (bascule N+1: ${bascule})`);
-  }
+  if (bascule) y += 1;
   
   return new Date(y, parseInt(mS, 10) - 1, parseInt(jS, 10));
 }
@@ -2597,242 +1747,16 @@ async function mettreAJourStatutEcheance(id, statut){
 async function reinitialiserStatut(id){ 
   await mettreAJourStatutEcheance(id, null); 
 }
-/* =========================
-   SYSTEME ACCORDEON POUR AFFECTATION - NOUVELLES CATEGORIES
-   ========================= */
 
-function loadAffectationChecklist(clientId = null){
-  const container = document.getElementById('checklistContent');
-  
-  // ✅ CORRECTION : Accepter clientId en paramètre OU le récupérer du selecteur
-  const targetClientId = clientId || getSelectedClientId('clientSelection');
-  const annee = document.getElementById('anneeAffectation').value;
-  const btn = document.getElementById('affecterDeclarationsBtn');
-
-  if(!targetClientId || targetClientId === 'tous') {
-    container.innerHTML = '<div class="no-data">Sélectionnez un client</div>'; 
-    btn.style.display = 'none'; 
-    return;
-  }
-  
-  btn.style.display = 'block';
-
-  // ✅ CORRECTION : Utiliser targetClientId au lieu de clientId
-  const declAffect = clientDeclarations.filter(cd => cd.client_id === targetClientId && cd.annee_comptable == annee);
-  
-  const has = (s, ...qs) => (s ? qs.some(q => s.toLowerCase().includes(q.toLowerCase())) : false);
-  const isP = (d, p) => (d.periodicite || '').toLowerCase() === p;
-
-  // NOUVELLES CATEGORIES SELON TA LISTE
-
-  
-  const sections = [
-    {
-      title: 'CNSS',
-      id: 'cnss',
-      match: d => d.type_declaration === 'CNSS' || has(d.nom_template, 'cnss')
-    },
-    {
-      title: 'TVA Mensuelle', 
-      id: 'tva_mensuelle',
-      match: d => isP(d, 'mensuelle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))
-    },
-    {
-      title: 'RAS IR/Salaires',
-      id: 'ras_ir_salaires', 
-      match: d => has(d.type_declaration, 'ir') || has(d.nom_template, 'ir/salaire', 'ir salaire', 'traitements', 'salaires')
-    },
-    {
-      title: 'RAS Sur Loyer',
-      id: 'ras_loyer',
-      match: d => has(d.type_declaration, 'ras', 'loyer') || has(d.nom_template, 'ras/loyer', 'ras loyer', 'loyer')
-    },
-    {
-      title: 'IS - Acomptes',
-      id: 'is_acomptes',
-      match: d => d.type_declaration === 'IS' && has(d.nom_template, 'acompte', 'premier', 'deuxième', 'troisième', 'quatrième', 't1', 't2', 't3', 't4')
-    },
-    {
-      title: 'TVA Trimestrielle',
-      id: 'tva_trimestrielle',
-      match: d => isP(d, 'trimestrielle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))
-    },
-    {
-      title: 'Délais de Paiement',
-      id: 'delais_paiement',
-      match: d => has(d.nom_template, 'délai', 'delai', 'paiement')
-    },
-    {
-      title: 'IS - Déclarations Annuelles',
-      id: 'is_annuelles',
-      match: d => isP(d, 'annuelle') && d.type_declaration === 'IS'
-    },
-    {
-      title: 'IR - Déclarations Annuelles',
-      id: 'ir_annuelles',
-      match: d => isP(d, 'annuelle') && d.type_declaration === 'IR'
-    }
-  ];
-
-  const html = sections.map(sec => {
-    const items = declarationTypes.filter(sec.match);
-    
-    if(!items.length) return '';
-    
-    const total = items.length;
-    const nbCochees = items.filter(decl => declAffect.some(cd => cd.declaration_type_id === decl.id)).length;
-    const all = nbCochees === total, some = nbCochees > 0 && nbCochees < total;
-    
-    const itemsHtml = items.map(decl => {
-      const checked = declAffect.some(cd => cd.declaration_type_id === decl.id);
-      const d1 = calculerDateReellePourDecl(decl, decl.date_debut_template, annee);
-      const d2 = calculerDateReellePourDecl(decl, decl.date_fin_template, annee);
-      
-      return `
-        <div class="declaration-item" data-declaration-id="${decl.id}">
-          <label>
-            <input type="checkbox" class="item-checkbox" ${checked ? 'checked' : ''} data-declaration-id="${decl.id}">
-            <div class="declaration-info">
-              <div class="declaration-name">${decl.nom_template}</div>
-              <div class="declaration-dates">${d1.toLocaleDateString('fr-FR')} - ${d2.toLocaleDateString('fr-FR')}</div>
-            </div>
-          </label>
-        </div>`;
-    }).join('');
-    
-    return `
-      <div class="category-accordion" data-category="${sec.id}">
-        <div class="category-header">
-          <div class="category-title-section">
-            <input type="checkbox" class="category-checkbox" ${all ? 'checked' : ''} ${some ? 'data-indeterminate="1"' : ''} data-category="${sec.id}">
-            <h3 class="category-title">${sec.title}</h3>
-          </div>
-          <div class="category-stats">
-            <span class="stats-count">${nbCochees}/${total}</span>
-            <div class="accordion-arrow">
-              <i class="fas fa-chevron-down"></i>
-            </div>
-          </div>
-        </div>
-        <div class="category-content">
-          ${itemsHtml}
-        </div>
-      </div>`;
-  }).filter(html => html !== '').join('');
-
-  container.innerHTML = html || '<div class="no-data">Aucune déclaration disponible</div>';
-  
-  // Initialiser les accordéons
-  initializeAccordions();
-  // Gérer les cases à cocher
-  setupCheckboxHandlers(container);
-  // Initialiser le bouton imprimer
-  updatePrintButton();
-}
-
-function initializeAccordions() {
-  const accordions = document.querySelectorAll('.category-accordion');
-  
-  accordions.forEach(accordion => {
-    const header = accordion.querySelector('.category-header');
-    const content = accordion.querySelector('.category-content');
-    const arrow = accordion.querySelector('.accordion-arrow i');
-    
-    // Fermer tous les accordéons par défaut
-    content.style.display = 'none';
-    arrow.classList.remove('fa-chevron-up');
-    arrow.classList.add('fa-chevron-down');
-    
-    header.addEventListener('click', function(e) {
-      // Ne pas déclencher si on clique sur la checkbox
-      if (e.target.type === 'checkbox') return;
-      
-      // Fermer tous les autres accordéons
-      accordions.forEach(otherAccordion => {
-        if (otherAccordion !== accordion) {
-          const otherContent = otherAccordion.querySelector('.category-content');
-          const otherArrow = otherAccordion.querySelector('.accordion-arrow i');
-          otherContent.style.display = 'none';
-          otherArrow.classList.remove('fa-chevron-up');
-          otherArrow.classList.add('fa-chevron-down');
-        }
-      });
-      
-      // Basculer l'accordéon actuel
-      const isOpen = content.style.display === 'block';
-      content.style.display = isOpen ? 'none' : 'block';
-      arrow.classList.toggle('fa-chevron-up', !isOpen);
-      arrow.classList.toggle('fa-chevron-down', isOpen);
-    });
-  });
-  
-}
-
-function setupCheckboxHandlers(container) {
-  // Cases à cocher indéterminées
-  container.querySelectorAll('.category-checkbox[data-indeterminate="1"]').forEach(cb => cb.indeterminate = true);
-
-  container.addEventListener('change', (e) => {
-    const t = e.target;
-    
-    if(t.classList.contains('category-checkbox')) {
-      const categoryId = t.getAttribute('data-category');
-      const categoryAccordion = container.querySelector(`.category-accordion[data-category="${categoryId}"]`);
-      categoryAccordion.querySelectorAll('.item-checkbox').forEach(i => i.checked = t.checked);
-      t.indeterminate = false;
-      
-      // Mettre à jour le compteur
-      updateCategoryStats(categoryAccordion);
-    }
-    
-    if(t.classList.contains('item-checkbox')) {
-      const categoryAccordion = t.closest('.category-accordion');
-      const items = [...categoryAccordion.querySelectorAll('.item-checkbox')];
-      const checked = items.filter(i => i.checked).length;
-      const total = items.length;
-      const categoryCb = categoryAccordion.querySelector('.category-checkbox');
-      
-      if(checked === 0) {
-        categoryCb.checked = false;
-        categoryCb.indeterminate = false;
-      } else if(checked === total) {
-        categoryCb.checked = true;
-        categoryCb.indeterminate = false;
-      } else {
-        categoryCb.checked = false;
-        categoryCb.indeterminate = true;
-      }
-      
-      // Mettre à jour le compteur
-      updateCategoryStats(categoryAccordion);
-    }
-  });
-}
-
-function updateCategoryStats(categoryAccordion) {
-  const items = categoryAccordion.querySelectorAll('.item-checkbox');
-  const checked = [...items].filter(i => i.checked).length;
-  const total = items.length;
-  const statsCount = categoryAccordion.querySelector('.stats-count');
-  
-  if (statsCount) {
-    statsCount.textContent = `${checked}/${total}`;
-  }
-}
-/* =========================
-   BOUTON IMPRESSION LISTE DECLARATIONS
-   ========================= */
-
+// Impression liste déclarations
 function setupPrintButton() {
   const printBtn = document.getElementById('btnImprimerDeclarations');
   if (!printBtn) return;
-  
   printBtn.addEventListener('click', imprimerListeDeclarations);
 }
 
 function updatePrintButton() {
   const printBtn = document.getElementById('btnImprimerDeclarations');
-  console.log('🖨️ Bouton impression:', printBtn); // Debug
   const clientId = getSelectedClientId('clientSelection');
   const annee = document.getElementById('anneeAffectation').value;
   
@@ -2877,19 +1801,14 @@ function imprimerListeDeclarations() {
   }
   
   const client = clients.find(c => c.id === clientId);
-  
-  // Récupérer les détails des déclarations
   const declarationsAvecDetails = declarationsAffectees.map(cd => {
     const declType = declarationTypes.find(dt => dt.id === cd.declaration_type_id);
-    return {
-      ...cd,
-      declaration_type: declType
-    };
+    return { ...cd, declaration_type: declType };
   });
   
-  // CORRECTION : Utiliser declarationsAvecDetails au lieu de declarationsAffectees
   genererPDFListeDeclarations(client, declarationsAvecDetails, annee);
 }
+
 function genererPDFListeDeclarations(client, declarations, annee) {
   const printWindow = window.open('', '_blank');
   const dateGeneration = new Date().toLocaleDateString('fr-FR');
@@ -2902,106 +1821,23 @@ function genererPDFListeDeclarations(client, declarations, annee) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liste des Déclarations - ${client.nom_raison_sociale}</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: white;
-            color: #1f2937;
-            line-height: 1.4;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #2563eb;
-            padding-bottom: 15px;
-        }
-        
-        .title {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 0.5rem;
-        }
-        
-        .subtitle {
-            color: #6b7280;
-            font-size: 1.1rem;
-        }
-        
-        .client-info {
-            background: #f8fafc;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 2rem;
-            border-left: 4px solid #2563eb;
-        }
-        
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 2rem;
-        }
-        
-        .table th {
-            background: #2563eb;
-            color: white;
-            padding: 1rem;
-            text-align: left;
-            font-weight: 600;
-        }
-        
-        .table td {
-            padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .table tr:nth-child(even) {
-            background: #f8fafc;
-        }
-        
-        .periodicite-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: white; color: #1f2937; line-height: 1.4; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
+        .title { font-size: 1.8rem; font-weight: 700; color: #1f2937; margin-bottom: 0.5rem; }
+        .subtitle { color: #6b7280; font-size: 1.1rem; }
+        .client-info { background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #2563eb; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .table th { background: #2563eb; color: white; padding: 1rem; text-align: left; font-weight: 600; }
+        .table td { padding: 1rem; border-bottom: 1px solid #e5e7eb; }
+        .table tr:nth-child(even) { background: #f8fafc; }
+        .periodicite-badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
         .mensuelle { background: #dbeafe; color: #1e40af; }
         .trimestrielle { background: #fef3c7; color: #92400e; }
         .annuelle { background: #d1fae5; color: #065f46; }
-        
-        .summary {
-            background: #f0f9ff;
-            padding: 1.5rem;
-            border-radius: 8px;
-            border-left: 4px solid #0ea5e9;
-            margin-top: 2rem;
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 3rem;
-            padding-top: 1rem;
-            border-top: 1px solid #e5e7eb;
-            color: #6b7280;
-            font-size: 0.875rem;
-        }
-        
-        @page {
-            margin: 10mm;
-        }
-        
-        @media print {
-            body {
-                background: white !important;
-                margin: 0;
-                padding: 0;
-            }
-        }
+        .summary { background: #f0f9ff; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #0ea5e9; margin-top: 2rem; }
+        .footer { text-align: center; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.875rem; }
+        @page { margin: 10mm; }
+        @media print { body { background: white !important; margin: 0; padding: 0; } }
     </style>
 </head>
 <body>
@@ -3031,11 +1867,7 @@ function genererPDFListeDeclarations(client, declarations, annee) {
                 <tr>
                     <td><strong>${decl.declaration_type.nom_template}</strong></td>
                     <td>${decl.declaration_type.type_declaration}</td>
-                    <td>
-                        <span class="periodicite-badge ${decl.declaration_type.periodicite}">
-                            ${decl.declaration_type.periodicite}
-                        </span>
-                    </td>
+                    <td><span class="periodicite-badge ${decl.declaration_type.periodicite}">${decl.declaration_type.periodicite}</span></td>
                     <td>${new Date(decl.date_debut).toLocaleDateString('fr-FR')}</td>
                     <td>${new Date(decl.date_fin).toLocaleDateString('fr-FR')}</td>
                 </tr>
@@ -3049,9 +1881,7 @@ function genererPDFListeDeclarations(client, declarations, annee) {
         <p style="margin: 0.5rem 0 0 0;"><strong>Date de génération:</strong> ${dateGeneration}</p>
     </div>
     
-    <div class="footer">
-        Document généré par GEST FID - NEW FID Cabinet Comptable
-    </div>
+    <div class="footer">Document généré par GEST FID - NEW FID Cabinet Comptable</div>
 </body>
 </html>
   `;
@@ -3060,584 +1890,152 @@ function genererPDFListeDeclarations(client, declarations, annee) {
   printWindow.document.close();
   printWindow.print();
 }
-/* =========================
-   MENUS GLOBAUX
-   ========================= */
-function setupGlobalMenus(){
-  document.addEventListener('click', (e) => {
-    const t = e.target;
-
-    if(t.closest('#clients')){
-      const btn = t.closest('.action-toggle');
-      if(btn){
-        const id = btn.getAttribute('data-id');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        const menu = document.getElementById(`client-menu-${id}`);
-        if(menu) menu.classList.add('show');
-        return;
-      }
-      
-      const item = t.closest('.menu-item');
-      if(item){
-        const id = item.getAttribute('data-id');
-        const action = item.getAttribute('data-action');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        return;
-      }
-    }
-
-    if(t.closest('#echeances')){
-      const btn = t.closest('.action-toggle');
-      if(btn){
-        const id = btn.getAttribute('data-id');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        const menu = document.getElementById(`menu-${id}`); 
-        if(menu) menu.classList.add('show');
-        return;
-      }
-      
-      const item = t.closest('.menu-item');
-      if(item){
-        mettreAJourStatutEcheance(item.getAttribute('data-id'), item.getAttribute('data-action'));
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        return;
-      }
-      
-      const reset = t.closest('.reset-btn');
-      if(reset){ 
-        reinitialiserStatut(reset.getAttribute('data-id')); 
-        return; 
-      }
-    }
-
-    if(!t.closest('.action-dropdown')) {
-      document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-    }
-  });
-}
-
-
-
 
 /* =========================
-   GESTION DES CODES D'ACCÈS - VERSION CORRIGÉE
+   FONCTIONS GESTION HONORAIRES
    ========================= */
 
-// État global pour les codes
-let codesData = [];
-let currentSelectedClientId = null;
-let isEditMode = false;
-
-// Initialisation de la page codes
-function initializeCodesPage() {
-  console.log('🔐 Initialisation de la page Codes - Version corrigée');
-  
-  setupCodesEventListeners();
-  setupCodesClientSelects();
-  setupCodesTabs();
-}
-
-// Configuration des événements
-function setupCodesEventListeners() {
-  // Onglets principaux
-  document.querySelectorAll('#codes .tab').forEach(tab => {
-    tab.addEventListener('click', (e) => {
-      const target = e.target.getAttribute('data-tab');
-      switchCodesTab(target);
-    });
-  });
-  
-  // Bouton modifier dans l'onglet affichage
-  document.getElementById('btnModifierCodes').addEventListener('click', switchToEditMode);
-  
-  // Annulation formulaire
-  document.getElementById('btnAnnulerCodes').addEventListener('click', cancelEdit);
-  
-  // Soumission formulaire
-  document.getElementById('formCodesClient').addEventListener('submit', handleSaveCodes);
-}
-
-// Configuration des sélecteurs de clients - CORRIGÉ
-function setupCodesClientSelects() {
-  // Initialiser les sélecteurs custom
-  initializeCustomSelects();
-  
-  // Peupler les options après un court délai pour être sûr que les sélecteurs sont initialisés
-  setTimeout(() => {
-    populateCustomSelect('filtreClientCodes', clients, null, false);
-    populateCustomSelect('ajoutClientSelect', clients, null, false);
-    
-    // Configurer les écouteurs d'événements pour les sélecteurs
-    setupCodesSelectListeners();
-  }, 100);
-}
-
-// Configuration des écouteurs pour les sélecteurs
-function setupCodesSelectListeners() {
-  // Sélecteur de l'onglet affichage
-  const filtreSelect = document.getElementById('filtreClientCodes');
-  if (filtreSelect) {
-    const selectedDiv = filtreSelect.querySelector('.select-selected');
-    
-    // Observer les changements de sélection
-    const observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-client-id') {
-          const clientId = selectedDiv.getAttribute('data-client-id');
-          console.log('👤 Client sélectionné (affichage):', clientId);
-          handleClientSelectionForDisplay(clientId);
-        }
-      });
-    });
-    observer.observe(selectedDiv, { attributes: true });
-  }
-  
-  // Sélecteur de l'onglet ajout
-  const ajoutSelect = document.getElementById('ajoutClientSelect');
-  if (ajoutSelect) {
-    const selectedDiv = ajoutSelect.querySelector('.select-selected');
-    
-    const observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'data-client-id') {
-          const clientId = selectedDiv.getAttribute('data-client-id');
-          console.log('👤 Client sélectionné (ajout):', clientId);
-          handleClientSelectionForAdd(clientId);
-        }
-      });
-    });
-    observer.observe(selectedDiv, { attributes: true });
-  }
-}
-
-// Configuration des onglets
-function setupCodesTabs() {
-  // Rien de plus ici, tout est géré dans setupCodesClientSelects()
-}
-
-// Changer d'onglet
-function switchCodesTab(tabName) {
-  document.querySelectorAll('#codes .tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('#codes .tab-content').forEach(c => c.classList.remove('active'));
-  
-  const tabElement = document.querySelector(`#codes .tab[data-tab="${tabName}"]`);
-  const contentElement = document.getElementById(tabName);
-  
-  if (tabElement) tabElement.classList.add('active');
-  if (contentElement) contentElement.classList.add('active');
-  
-  if (tabName === 'afficher-codes') {
-    resetEditMode();
-  }
-  
-  console.log('📁 Onglet changé:', tabName);
-}
-
-// Gestion sélection client pour l'affichage
-async function handleClientSelectionForDisplay(clientId) {
-  console.log('🔄 Traitement sélection affichage:', clientId);
-  
-  if (!clientId || clientId === 'null') {
-    showNoClientSelected();
-    document.getElementById('btnModifierCodes').disabled = true;
-    return;
-  }
-  
-  currentSelectedClientId = clientId;
-  document.getElementById('btnModifierCodes').disabled = false;
-  
-  await loadClientCodes(clientId);
-  displayClientCodesForView();
-}
-
-// Gestion sélection client pour l'ajout
-async function handleClientSelectionForAdd(clientId) {
-  console.log('🔄 Traitement sélection ajout:', clientId);
-  
-  if (!clientId || clientId === 'null') {
-    hideClientExistsMessage();
-    clearForm();
-    document.getElementById('btnEnregistrerCodes').disabled = true;
-    return;
-  }
-  
-  document.getElementById('btnEnregistrerCodes').disabled = false;
-  await checkIfClientHasCodes(clientId);
-}
-
-// Charger les codes d'un client
-async function loadClientCodes(clientId) {
+async function loadHonorairesFromSupabase() {
   try {
-    console.log(`📥 Chargement des codes pour: ${clientId}`);
+    console.log('Chargement des honoraires depuis Supabase...');
     
-    // CORRECTION : Lire directement depuis la table clients
-    const client = clients.find(c => c.id === clientId);
+    const { data: facturations, error: errorFactu } = await supabase
+      .from('honoraires_factures')
+      .select('*')
+      .order('date', { ascending: false });
     
-    if (client) {
-      codesData = client;
-      console.log('✅ Codes chargés depuis clients:', codesData);
-    } else {
-      codesData = null;
-      console.log('❌ Client non trouvé');
+    if (errorFactu) console.error('Erreur chargement facturations:', errorFactu);
+    else {
+      honosFactu = facturations || [];
+      console.log(`${honosFactu.length} facturations chargées`);
     }
     
-  } catch (error) {
-    console.error('❌ Erreur chargement codes:', error);
-    codesData = null;
-  }
-}
-
-// Vérifier si un client a déjà des codes
-async function checkIfClientHasCodes(clientId) {
-  // CORRECTION : Vérifier directement dans les clients
-  const client = clients.find(c => c.id === clientId);
-  codesData = client || null;
-  
-  if (codesData && hasCodesData(codesData)) {
-    // Client existe déjà avec des codes
-    showClientExistsMessage();
-    fillFormWithData(codesData);
-    isEditMode = true;
-    document.getElementById('btnEnregistrerCodes').textContent = 'Mettre à jour les Codes';
-    console.log('ℹ️ Client existant - mode édition activé');
-  } else {
-    // Nouveau client ou sans codes
-    hideClientExistsMessage();
-    clearForm();
-    isEditMode = false;
-    document.getElementById('btnEnregistrerCodes').textContent = 'Enregistrer les Codes';
-    console.log('🆕 Nouveau client - formulaire vide');
-  }
-}
-function hasCodesData(client) {
-  return client.simpl_login || client.damancom_login || client.barid_login || 
-         client.email_login || client.marche_login || client.anapec_login;
-}
-// Afficher les codes en mode consultation
-function displayClientCodesForView() {
-  const container = document.getElementById('affichageCodesContainer');
-  
-  if (!currentSelectedClientId) {
-    showNoClientSelected();
-    return;
-  }
-  
-  if (!codesData) {
-    container.innerHTML = `
-      <div class="no-data-card">
-        <i class="fas fa-key" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
-        <h3>Aucun code enregistré</h3>
-        <p>Ce client n'a pas encore de codes d'accès enregistrés</p>
-        <button class="btn-primary" onclick="switchCodesTab('ajouter-codes')" style="margin-top: 1rem;">
-          <i class="fas fa-plus"></i> Ajouter des codes
-        </button>
-      </div>
-    `;
-    return;
-  }
-  
-  const selectedClient = clients.find(c => c.id === currentSelectedClientId);
-  
-  container.innerHTML = `
-    <div class="card">
-      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
-        <h3 style="margin: 0; color: var(--text-primary);">Codes d'accès - ${selectedClient.nom_raison_sociale}</h3>
-        <div style="font-size: 0.875rem; color: var(--text-secondary);">
-          Dernière modification: ${codesData.updated_at ? new Date(codesData.updated_at).toLocaleDateString('fr-FR') : 'Non disponible'}
-        </div>
-      </div>
-      
-      ${generateServiceCards()}
-      
-      <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
-        <i class="fas fa-info-circle" style="color: var(--info-color); margin-right: 0.5rem;"></i>
-        <span style="color: var(--text-secondary); font-size: 0.875rem;">
-          Double-cliquez sur n'importe quel champ pour copier son contenu
-        </span>
-      </div>
-    </div>
-  `;
-  
-  setupCopyToClipboard();
-}
-
-// Générer les cartes de service pour l'affichage
-function generateServiceCards() {
-  const services = [
-    {
-      name: 'SIMPL',
-      icon: 'fas fa-building',
-      fields: [
-        { label: 'Mot de passe Adhésion', value: codesData.simpl_mdp_adhesion, id: 'simpl_mdp_adhesion' },
-        { label: 'Login', value: codesData.simpl_login, id: 'simpl_login' },
-        { label: 'Mot de passe', value: codesData.simpl_mot_de_passe, id: 'simpl_mot_de_passe' },
-        { label: 'Email', value: codesData.simpl_email, id: 'simpl_email' }
-      ]
-    },
-    {
-      name: 'DAMANCOM',
-      icon: 'fas fa-cloud',
-      fields: [
-        { label: 'Login', value: codesData.damancom_login, id: 'damancom_login' },
-        { label: 'Mot de passe', value: codesData.damancom_mot_de_passe, id: 'damancom_mot_de_passe' },
-        { label: 'Email', value: codesData.damancom_email, id: 'damancom_email' }
-      ]
-    },
-    {
-      name: 'BARID E-SIGN',
-      icon: 'fas fa-signature',
-      fields: [
-        { label: 'Login', value: codesData.barid_login, id: 'barid_login' },
-        { label: 'Mot de passe', value: codesData.barid_mot_de_passe, id: 'barid_mot_de_passe' },
-        { label: 'Email', value: codesData.barid_email, id: 'barid_email' }
-      ]
-    },
-    {
-      name: 'EMAIL',
-      icon: 'fas fa-envelope',
-      fields: [
-        { label: 'Login (email)', value: codesData.email_login, id: 'email_login' },
-        { label: 'Mot de passe', value: codesData.email_mot_de_passe, id: 'email_mot_de_passe' }
-      ]
-    },
-    {
-      name: 'MARCHÉ PUBLIQUE',
-      icon: 'fas fa-gavel',
-      fields: [
-        { label: 'Login', value: codesData.marche_login, id: 'marche_login' },
-        { label: 'Mot de passe', value: codesData.marche_mot_de_passe, id: 'marche_mot_de_passe' }
-      ]
-    },
-    {
-      name: 'ANAPEC',
-      icon: 'fas fa-briefcase',
-      fields: [
-        { label: 'Login', value: codesData.anapec_login, id: 'anapec_login' },
-        { label: 'Mot de passe', value: codesData.anapec_mot_de_passe, id: 'anapec_mot_de_passe' }
-      ]
-    }
-  ];
-  
-  return services.map((service, index) => `
-    <div class="code-service-card">
-      <div class="code-service-header">
-        <div class="code-service-icon">
-          <i class="${service.icon}"></i>
-        </div>
-        <h4 class="code-service-title">${service.name}</h4>
-      </div>
-      
-      <div class="code-fields-container">
-        ${service.fields.map(field => `
-          <div class="code-field-group">
-            <span class="code-field-label">${field.label}</span>
-            <span class="code-field-value" data-field-id="${field.id}">
-              ${field.value || '<span style="color: var(--text-secondary); font-style: italic;">Non renseigné</span>'}
-            </span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `).join('');
-}
-
-// Configuration de la copie par double-clic
-function setupCopyToClipboard() {
-  document.querySelectorAll('.code-field-value').forEach(field => {
-    field.addEventListener('dblclick', function(e) {
-      const text = this.textContent.trim();
-      if (!text || text.includes('Non renseigné')) return;
-      
-      copyFieldContent(this, text);
-    });
-  });
-}
-
-// Copier le contenu d'un champ
-function copyFieldContent(element, text) {
-  navigator.clipboard.writeText(text).then(() => {
-    // Feedback visuel
-    element.classList.add('copie-effect');
-    setTimeout(() => {
-      element.classList.remove('copie-effect');
-    }, 1000);
-  }).catch(err => {
-    console.error('Erreur copie:', err);
-    // Fallback
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
+    const { data: paiements, error: errorPay } = await supabase
+      .from('honoraires_paiements')
+      .select('*')
+      .order('date', { ascending: false });
     
-    element.classList.add('copie-effect');
-    setTimeout(() => {
-      element.classList.remove('copie-effect');
-    }, 1000);
-  });
-}
-
-// Passer en mode édition
-function switchToEditMode() {
-  if (!currentSelectedClientId) return;
-  
-  // Pré-remplir le formulaire avec les données existantes
-  if (codesData) {
-    fillFormWithData(codesData);
-  }
-  
-  // Sélectionner le client dans l'onglet ajout
-  const selectElement = document.getElementById('ajoutClientSelect');
-  const selectedDiv = selectElement.querySelector('.select-selected');
-  const client = clients.find(c => c.id === currentSelectedClientId);
-  
-  if (client) {
-    selectedDiv.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
-    selectedDiv.setAttribute('data-client-id', currentSelectedClientId);
-  }
-  
-  // Basculer vers l'onglet ajout/modification
-  switchCodesTab('ajouter-codes');
-  
-  // Afficher le message si client existe déjà
-  if (codesData) {
-    showClientExistsMessage();
-    isEditMode = true;
-    document.getElementById('btnEnregistrerCodes').textContent = 'Mettre à jour les Codes';
-  }
-}
-
-// Remplir le formulaire avec les données
-function fillFormWithData(data) {
-  const fields = [
-    'simpl_mdp_adhesion', 'simpl_login', 'simpl_mot_de_passe', 'simpl_email',
-    'damancom_login', 'damancom_mot_de_passe', 'damancom_email',
-    'barid_login', 'barid_mot_de_passe', 'barid_email',
-    'email_login', 'email_mot_de_passe',
-    'marche_login', 'marche_mot_de_passe',
-    'anapec_login', 'anapec_mot_de_passe'
-  ];
-  
-  fields.forEach(field => {
-    const element = document.getElementById(field);
-    if (element && data[field]) {
-      element.value = data[field];
+    if (errorPay) console.error('Erreur chargement paiements:', errorPay);
+    else {
+      honosPay = paiements || [];
+      console.log(`${honosPay.length} paiements chargés`);
     }
-  });
-}
-
-// Vider le formulaire
-function clearForm() {
-  document.getElementById('formCodesClient').reset();
-}
-
-// Afficher le message "client existe déjà"
-function showClientExistsMessage() {
-  document.getElementById('messageClientExistant').style.display = 'flex';
-}
-
-// Cacher le message "client existe déjà"
-function hideClientExistsMessage() {
-  document.getElementById('messageClientExistant').style.display = 'none';
-}
-
-// Afficher "aucun client sélectionné"
-function showNoClientSelected() {
-  const container = document.getElementById('affichageCodesContainer');
-  container.innerHTML = `
-    <div class="no-data-card">
-      <i class="fas fa-hand-pointer" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
-      <h3>Sélectionnez un client</h3>
-      <p>Veuillez choisir un client dans la liste déroulante pour afficher ses codes d'accès</p>
-    </div>
-  `;
-}
-
-// Annuler l'édition
-function cancelEdit() {
-  clearForm();
-  hideClientExistsMessage();
-  switchCodesTab('afficher-codes');
-}
-
-// Réinitialiser le mode édition
-function resetEditMode() {
-  isEditMode = false;
-  document.getElementById('btnEnregistrerCodes').textContent = 'Enregistrer les Codes';
-}
-
-// Gérer l'enregistrement des codes
-async function handleSaveCodes(e) {
-  e.preventDefault();
-  
-  const clientId = getSelectedClientId('ajoutClientSelect');
-  if (!clientId) {
-    alert('❌ Veuillez sélectionner un client');
-    return;
+    
+  } catch (e) {
+    console.error('Erreur chargement honoraires Supabase:', e);
+    honosFactu = [];
+    honosPay = [];
   }
-  
+}
+
+async function addFacturation(facturationData) {
   try {
-    const formData = getFormData();
-    
-    // CORRECTION : Toujours faire un UPDATE sur la table clients
     const { data, error } = await supabase
-      .from('clients')
-      .update(formData)
-      .eq('id', clientId)
+      .from('honoraires_factures')
+      .insert([facturationData])
       .select();
     
     if (error) throw error;
-    
-    if (data && data[0]) {
-      alert(`✅ Codes ${isEditMode ? 'mis à jour' : 'enregistrés'} avec succès !`);
-      
-      // Recharger les données
-      currentSelectedClientId = clientId;
-      await loadClients(); // Recharger tous les clients
-      await loadClientCodes(clientId); // Recharger les codes du client
-      
-      // Retourner à l'onglet affichage
-      switchCodesTab('afficher-codes');
-      displayClientCodesForView();
-    }
-    
+    if (data && data[0]) honosFactu.unshift(data[0]);
+    return data ? data[0] : null;
   } catch (error) {
-    console.error('❌ Erreur sauvegarde codes:', error);
-    alert(`❌ Erreur lors de la sauvegarde: ${error.message}`);
+    console.error('Erreur ajout facturation:', error);
+    alert('Erreur lors de l\'ajout de la facturation: ' + error.message);
+    return null;
   }
 }
 
-// Récupérer les données du formulaire
-function getFormData() {
-  const fields = [
-    'simpl_mdp_adhesion', 'simpl_login', 'simpl_mot_de_passe', 'simpl_email',
-    'damancom_login', 'damancom_mot_de_passe', 'damancom_email',
-    'barid_login', 'barid_mot_de_passe', 'barid_email',
-    'email_login', 'email_mot_de_passe',
-    'marche_login', 'marche_mot_de_passe',
-    'anapec_login', 'anapec_mot_de_passe'
-  ];
-  
-  const formData = {};
-  fields.forEach(field => {
-    const element = document.getElementById(field);
-    formData[field] = element.value.trim() || null;
-  });
-  
-  return formData;
+async function addPaiement(paiementData) {
+  try {
+    const { data, error } = await supabase
+      .from('honoraires_paiements')
+      .insert([paiementData])
+      .select();
+    
+    if (error) throw error;
+    if (data && data[0]) honosPay.unshift(data[0]);
+    return data ? data[0] : null;
+  } catch (error) {
+    console.error('Erreur ajout paiement:', error);
+    alert('Erreur lors de l\'ajout du paiement: ' + error.message);
+    return null;
+  }
 }
 
-// Fonction utilitaire pour récupérer l'ID client sélectionné
-function getSelectedClientId(selectId) {
-  const selectElement = document.getElementById(selectId);
-  if (!selectElement) return null;
-  const selectedDiv = selectElement.querySelector('.select-selected');
-  return selectedDiv.getAttribute('data-client-id');
+async function updateFacturation(id, updates) {
+  try {
+    const { error } = await supabase
+      .from('honoraires_factures')
+      .update(updates)
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    const index = honosFactu.findIndex(item => item.id === id);
+    if (index !== -1) honosFactu[index] = { ...honosFactu[index], ...updates };
+    
+    return true;
+  } catch (error) {
+    console.error('Erreur modification facturation:', error);
+    alert('Erreur lors de la modification: ' + error.message);
+    return false;
+  }
 }
-/* =========================
-   HONORAIRES
-   ========================= */
+
+async function updatePaiement(id, updates) {
+  try {
+    const { error } = await supabase
+      .from('honoraires_paiements')
+      .update(updates)
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    const index = honosPay.findIndex(item => item.id === id);
+    if (index !== -1) honosPay[index] = { ...honosPay[index], ...updates };
+    
+    return true;
+  } catch (error) {
+    console.error('Erreur modification paiement:', error);
+    alert('Erreur lors de la modification: ' + error.message);
+    return false;
+  }
+}
+
+async function deleteFacturation(id) {
+  try {
+    const { error } = await supabase
+      .from('honoraires_factures')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    honosFactu = honosFactu.filter(item => item.id !== id);
+    return true;
+  } catch (error) {
+    console.error('Erreur suppression facturation:', error);
+    alert('Erreur lors de la suppression: ' + error.message);
+    return false;
+  }
+}
+
+async function deletePaiement(id) {
+  try {
+    const { error } = await supabase
+      .from('honoraires_paiements')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    honosPay = honosPay.filter(item => item.id !== id);
+    return true;
+  } catch (error) {
+    console.error('Erreur suppression paiement:', error);
+    alert('Erreur lors de la suppression: ' + error.message);
+    return false;
+  }
+}
+
 async function setupHonoraires(){
   fillHonorairesClients();
   
@@ -3698,9 +2096,7 @@ async function setupHonoraires(){
     };
     
     const result = await addFacturation(facturationData);
-    if (result) {
-      refreshHonorairesUI();
-    }
+    if (result) refreshHonorairesUI();
   });
   
   document.getElementById('btnAjouterPaiement').addEventListener('click', async () => {
@@ -3725,9 +2121,7 @@ async function setupHonoraires(){
     };
     
     const result = await addPaiement(paiementData);
-    if (result) {
-      refreshHonorairesUI();
-    }
+    if (result) refreshHonorairesUI();
   });
 
   refreshHonorairesUI();
@@ -3736,13 +2130,9 @@ async function setupHonoraires(){
 let lastHonosState = { clientId: null, exercice: null, factuHash: '', payHash: '' };
 
 function refreshHonorairesUI(){
-  // Vérifier si les données ont vraiment changé
   const currentState = getHonosCurrentState();
-  if (!hasHonosDataChanged(currentState)) {
-    return; // Rien à mettre à jour
-  }
+  if (!hasHonosDataChanged(currentState)) return;
   
-  // Mettre à jour seulement si nécessaire
   updateHonorairesDisplay();
   lastHonosState = currentState;
 }
@@ -3770,13 +2160,8 @@ function updateHonorairesDisplay() {
   const rows = honosFactu.filter(x => x.client_id === honosClientId && x.exercice == honosExercice);
   const pay = honosPay.filter(x => x.client_id === honosClientId);
   
-  // FACTURATIONS - update sélectif
   updateTableContent('factuTbody', rows, createFactuRow, 'Aucune facturation');
-  
-  // PAIEMENTS - update sélectif  
   updateTableContent('payTbody', pay, createPayRow, 'Aucun paiement');
-  
-  // SITUATION - recalculer seulement les totaux
   updateSituationTotals(rows, pay);
 }
 
@@ -3784,7 +2169,6 @@ function updateTableContent(tbodyId, data, createRowFn, emptyMessage) {
   const tbody = document.getElementById(tbodyId);
   const existingRows = Array.from(tbody.querySelectorAll('tr[data-id]'));
   
-  // Mettre à jour les lignes existantes ou en créer de nouvelles
   data.forEach((item, index) => {
     const existingRow = existingRows.find(row => row.dataset.id === item.id);
     if (existingRow) {
@@ -3799,14 +2183,10 @@ function updateTableContent(tbodyId, data, createRowFn, emptyMessage) {
     }
   });
   
-  // Supprimer les lignes qui n'existent plus
   existingRows.forEach(row => {
-    if (!data.find(item => item.id === row.dataset.id)) {
-      row.remove();
-    }
+    if (!data.find(item => item.id === row.dataset.id)) row.remove();
   });
   
-  // Gérer le cas "aucune donnée"
   const noDataRow = tbody.querySelector('.no-data');
   if (data.length === 0 && !noDataRow) {
     tbody.innerHTML = `<tr><td colspan="5" class="no-data">${emptyMessage}</td></tr>`;
@@ -3823,9 +2203,18 @@ function createFactuRow(r) {
     <td>${r.libelle}</td>
     <td>${r.exercice}</td>
     <td style="text-align:right">${r.montant.toFixed(2)}</td>
-    <td>
-      <button class="btn-warning" onclick="editHonosFactu('${r.id}')"><i class="fas fa-edit"></i></button>
-      <button class="btn-secondary" onclick="delHonosFactu('${r.id}')"><i class="fas fa-trash"></i></button>
+    <td class="actions">
+      <div class="dropdown">
+        <button class="action-btn">Action ▾</button>
+        <div class="dropdown-content">
+          <a href="#" class="action-edit-factu" data-id="${r.id}">
+            <i class="fas fa-edit"></i> Modifier
+          </a>
+          <a href="#" class="action-delete-factu" data-id="${r.id}">
+            <i class="fas fa-trash"></i> Supprimer
+          </a>
+        </div>
+      </div>
     </td>
   `;
   return row;
@@ -3839,14 +2228,57 @@ function createPayRow(r) {
     <td>${r.mode}</td>
     <td>${r.ref}</td>
     <td style="text-align:right">${r.montant.toFixed(2)}</td>
-    <td>
-      <button class="btn-warning" onclick="editHonosPay('${r.id}')"><i class="fas fa-edit"></i></button>
-      <button class="btn-secondary" onclick="delHonosPay('${r.id}')"><i class="fas fa-trash"></i></button>
+    <td class="actions">
+      <div class="dropdown">
+        <button class="action-btn">Action ▾</button>
+        <div class="dropdown-content">
+          <a href="#" class="action-edit-pay" data-id="${r.id}">
+            <i class="fas fa-edit"></i> Modifier
+          </a>
+          <a href="#" class="action-delete-pay" data-id="${r.id}">
+            <i class="fas fa-trash"></i> Supprimer
+          </a>
+        </div>
+      </div>
     </td>
   `;
   return row;
 }
-
+document.addEventListener('click', function(e) {
+  // Facturations
+  const editFactu = e.target.closest('.action-edit-factu');
+  if (editFactu) {
+    e.preventDefault();
+    const id = editFactu.getAttribute('data-id');
+    editHonosFactu(id);
+    return;
+  }
+  
+  const deleteFactu = e.target.closest('.action-delete-factu');
+  if (deleteFactu) {
+    e.preventDefault();
+    const id = deleteFactu.getAttribute('data-id');
+    delHonosFactu(id);
+    return;
+  }
+  
+  // Paiements
+  const editPay = e.target.closest('.action-edit-pay');
+  if (editPay) {
+    e.preventDefault();
+    const id = editPay.getAttribute('data-id');
+    editHonosPay(id);
+    return;
+  }
+  
+  const deletePay = e.target.closest('.action-delete-pay');
+  if (deletePay) {
+    e.preventDefault();
+    const id = deletePay.getAttribute('data-id');
+    delHonosPay(id);
+    return;
+  }
+});
 function updateExistingRow(row, item, createRowFn) {
   const newRow = createRowFn(item);
   row.innerHTML = newRow.innerHTML;
@@ -3865,13 +2297,11 @@ function updateSituationTotals(rows, pay) {
   const report = calcReportFor(honosClientId, Number(honosExercice) - 1);
   const solde = (report + totalF) - totalP;
 
-  // Mettre à jour seulement les totaux (pas tout le HTML)
   document.getElementById('sitTotalServices').textContent = totalF.toFixed(2);
   document.getElementById('sitTotalPaiements').textContent = totalP.toFixed(2);
   document.getElementById('sitReport').textContent = report.toFixed(2);
   document.getElementById('sitSolde').textContent = solde.toFixed(2);
   
-  // Mettre à jour les tableaux de situation seulement si nécessaire
   updateSituationTables(factu, payClient);
 }
 
@@ -3902,7 +2332,70 @@ function createSituationPayRow(r) {
   return row;
 }
 
-// Gestion du bouton d'impression
+function calcReportFor(clientId, annee){
+  if(!clientId || !annee) return 0;
+  
+  const f = honosFactu.filter(x => x.client_id === clientId && x.exercice == annee);
+  const p = honosPay.filter(x => {
+    if (x.client_id !== clientId) return false;
+    const payDate = parseYMDLocal(x.date);
+    const payYear = payDate.getFullYear();
+    return payYear.toString() === annee.toString();
+  });
+  
+  const totalF = f.reduce((a, b) => a + (b.montant || 0), 0);
+  const totalP = p.reduce((a, b) => a + (b.montant || 0), 0);
+  const solde = totalF - totalP;
+  
+  return solde > 0 ? solde : 0;
+}
+
+window.editHonosFactu = async (id) => {
+  const it = honosFactu.find(x => x.id === id); 
+  if(!it) return;
+  
+  const lib = prompt('Libellé ?', it.libelle) || it.libelle;
+  const m = Number(prompt('Montant ?', it.montant)); 
+  if(isNaN(m) || m <= 0) return;
+  
+  const d = prompt('Date (YYYY-MM-DD) ?', it.date) || it.date;
+  
+  const updates = { libelle: lib, montant: m, date: d };
+  const success = await updateFacturation(id, updates);
+  if (success) refreshHonorairesUI();
+};
+
+window.delHonosFactu = async (id) => {
+  if(confirm('Supprimer cette facturation ?')) {
+    const success = await deleteFacturation(id);
+    if (success) refreshHonorairesUI();
+  }
+};
+
+window.editHonosPay = async (id) => {
+  const it = honosPay.find(x => x.id === id); 
+  if(!it) return;
+  
+  const mode = prompt('Mode ?', it.mode) || it.mode;
+  const ref = prompt('Référence ?', it.ref) || it.ref;
+  const m = Number(prompt('Montant ?', it.montant)); 
+  if(isNaN(m) || m <= 0) return;
+  
+  const d = prompt('Date (YYYY-MM-DD) ?', it.date) || it.date;
+  
+  const updates = { mode: mode, ref: ref, montant: m, date: d };
+  const success = await updatePaiement(id, updates);
+  if (success) refreshHonorairesUI();
+};
+
+window.delHonosPay = async (id) => {
+  if(confirm('Supprimer ce paiement ?')) {
+    const success = await deletePaiement(id);
+    if (success) refreshHonorairesUI();
+  }
+};
+
+// Impression situation honoraires
 document.getElementById('btnImprimerSituation').addEventListener('click', () => {
   if(!honosClientId) {
     alert('Veuillez sélectionner un client');
@@ -3936,9 +2429,7 @@ document.getElementById('btnImprimerSituation').addEventListener('click', () => 
           <h2>Situation des Honoraires</h2>
         </div>
         
-        <div class="date-print">
-          Imprimé le: ${new Date().toLocaleDateString('fr-FR')}
-        </div>
+        <div class="date-print">Imprimé le: ${new Date().toLocaleDateString('fr-FR')}</div>
         
         <div class="client-info">
           <h3>Client: ${clientNom}</h3>
@@ -3950,32 +2441,16 @@ document.getElementById('btnImprimerSituation').addEventListener('click', () => 
           <div style="flex: 1;">
             <h4>Services Facturés</h4>
             <table class="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Libellé</th>
-                  <th>Montant (DH)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${document.getElementById('sitFactuTbody').innerHTML}
-              </tbody>
+              <thead><tr><th>Date</th><th>Libellé</th><th>Montant (DH)</th></tr></thead>
+              <tbody>${document.getElementById('sitFactuTbody').innerHTML}</tbody>
             </table>
           </div>
           
           <div style="flex: 1;">
             <h4>Paiements</h4>
             <table class="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Référence</th>
-                  <th>Montant (DH)</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${document.getElementById('sitPayTbody').innerHTML}
-              </tbody>
+              <thead><tr><th>Date</th><th>Référence</th><th>Montant (DH)</th></tr></thead>
+              <tbody>${document.getElementById('sitPayTbody').innerHTML}</tbody>
             </table>
           </div>
         </div>
@@ -3995,90 +2470,8 @@ document.getElementById('btnImprimerSituation').addEventListener('click', () => 
   printWindow.print();
 });
 
-function calcReportFor(clientId, annee){
-  if(!clientId || !annee) return 0;
-  
-  const f = honosFactu.filter(x => x.client_id === clientId && x.exercice == annee);
-  const p = honosPay.filter(x => {
-    if (x.client_id !== clientId) return false;
-    const payDate = parseYMDLocal(x.date);
-    const payYear = payDate.getFullYear();
-    return payYear.toString() === annee.toString();
-  });
-  
-  const totalF = f.reduce((a, b) => a + (b.montant || 0), 0);
-  const totalP = p.reduce((a, b) => a + (b.montant || 0), 0);
-  const solde = totalF - totalP;
-  
-  return solde > 0 ? solde : 0;
-}
-
-window.editHonosFactu = async (id) => {
-  const it = honosFactu.find(x => x.id === id); 
-  if(!it) return;
-  
-  const lib = prompt('Libellé ?', it.libelle) || it.libelle;
-  const m = Number(prompt('Montant ?', it.montant)); 
-  if(isNaN(m) || m <= 0) return;
-  
-  const d = prompt('Date (YYYY-MM-DD) ?', it.date) || it.date;
-  
-  const updates = {
-    libelle: lib,
-    montant: m,
-    date: d
-  };
-  
-  const success = await updateFacturation(id, updates);
-  if (success) {
-    refreshHonorairesUI();
-  }
-};
-
-window.delHonosFactu = async (id) => {
-  if(confirm('Supprimer cette facturation ?')) {
-    const success = await deleteFacturation(id);
-    if (success) {
-      refreshHonorairesUI();
-    }
-  }
-};
-
-window.editHonosPay = async (id) => {
-  const it = honosPay.find(x => x.id === id); 
-  if(!it) return;
-  
-  const mode = prompt('Mode ?', it.mode) || it.mode;
-  const ref = prompt('Référence ?', it.ref) || it.ref;
-  const m = Number(prompt('Montant ?', it.montant)); 
-  if(isNaN(m) || m <= 0) return;
-  
-  const d = prompt('Date (YYYY-MM-DD) ?', it.date) || it.date;
-  
-  const updates = {
-    mode: mode,
-    ref: ref,
-    montant: m,
-    date: d
-  };
-  
-  const success = await updatePaiement(id, updates);
-  if (success) {
-    refreshHonorairesUI();
-  }
-};
-
-window.delHonosPay = async (id) => {
-  if(confirm('Supprimer ce paiement ?')) {
-    const success = await deletePaiement(id);
-    if (success) {
-      refreshHonorairesUI();
-    }
-  }
-};
-
 /* =========================
-   SITUATION GLOBALE
+   FONCTIONS SITUATION GLOBALE
    ========================= */
 
 function initializeSituationGlobale() {
@@ -4098,20 +2491,15 @@ function loadSituationGlobale() {
   console.log('📊 Données disponibles - Factures:', honosFactu.length, 'Paiements:', honosPay.length);
   
   situationGlobaleData = clients.map(client => {
-    // FACTURATIONS : Filtrer par exercice
     const facturations = honosFactu.filter(f => 
       f.client_id === client.id && parseInt(f.exercice) === exercice
     );
     
-    // PAIEMENTS : Maintenant aussi filtrer par exercice pour être cohérent
     const paiements = honosPay.filter(p => {
       if (p.client_id !== client.id) return false;
-      
-      // Vérifier si le paiement a un champ exercice, sinon utiliser l'année de la date
       if (p.exercice !== undefined && p.exercice !== null) {
         return parseInt(p.exercice) === exercice;
       } else {
-        // Fallback : utiliser l'année de la date
         const payDate = parseYMDLocal(p.date);
         const payYear = payDate.getFullYear();
         return payYear === exercice;
@@ -4121,17 +2509,6 @@ function loadSituationGlobale() {
     const totalFacture = facturations.reduce((sum, f) => sum + (parseFloat(f.montant) || 0), 0);
     const totalPaye = paiements.reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
     const resteAPayer = totalFacture - totalPaye;
-    
-    // Debug pour ce client
-    if (facturations.length > 0 || paiements.length > 0) {
-      console.log(`👤 Client ${client.nom_raison_sociale}:`, {
-        facturations: facturations.length,
-        paiements: paiements.length,
-        totalFacture,
-        totalPaye,
-        resteAPayer
-      });
-    }
     
     let statut = 'a_jour';
     if (resteAPayer > 0) {
@@ -4221,9 +2598,7 @@ function filterSituationData(data) {
   const recherche = document.getElementById('rechercheGlobale').value.toLowerCase();
   
   return data.filter(item => {
-    if (filtreStatut !== 'tous' && item.statut !== filtreStatut) {
-      return false;
-    }
+    if (filtreStatut !== 'tous' && item.statut !== filtreStatut) return false;
     
     if (filtreMontant !== 'tous') {
       const montant = item.resteAPayer;
@@ -4238,9 +2613,7 @@ function filterSituationData(data) {
       item.client.nom_raison_sociale.toLowerCase().includes(recherche) ||
       (item.client.ice && item.client.ice.toLowerCase().includes(recherche)) ||
       (item.client.contact && item.client.contact.toLowerCase().includes(recherche))
-    )) {
-      return false;
-    }
+    )) return false;
     
     return true;
   });
@@ -4387,46 +2760,452 @@ function updateCharts() {
 }
 
 /* =========================
-   FILTRES / SELECTEURS
+   FONCTIONS GESTION CODES
    ========================= */
-document.getElementById('clientSelection').addEventListener('change', loadAffectationChecklist);
-document.getElementById('anneeAffectation').addEventListener('change', loadAffectationChecklist);
-document.getElementById('anneeSelection').addEventListener('change', loadEcheancesTable);
-document.getElementById('filtreEtat').addEventListener('change', loadEcheancesTable);
-document.getElementById('filtreClient').addEventListener('change', loadEcheancesTable);
 
-/* =========================
-   DIVERS
-   ========================= */
-function updateDate(){
-  const now = new Date();
-  document.getElementById('currentDate').textContent = now.toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long', 
-    day: 'numeric'
+function initializeCodesPage() {
+  console.log('🔐 Initialisation de la page Codes - Version corrigée');
+  setupCodesEventListeners();
+  setupCodesClientSelects();
+  setupCodesTabs();
+}
+
+function setupCodesEventListeners() {
+  document.querySelectorAll('#codes .tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      const target = e.target.getAttribute('data-tab');
+      switchCodesTab(target);
+    });
+  });
+  
+  document.getElementById('btnModifierCodes').addEventListener('click', switchToEditMode);
+  document.getElementById('btnAnnulerCodes').addEventListener('click', cancelEdit);
+  document.getElementById('formCodesClient').addEventListener('submit', handleSaveCodes);
+}
+
+function setupCodesClientSelects() {
+  initializeCustomSelects();
+  
+  setTimeout(() => {
+    populateCustomSelect('filtreClientCodes', clients, null, false);
+    populateCustomSelect('ajoutClientSelect', clients, null, false);
+    setupCodesSelectListeners();
+  }, 100);
+}
+
+function setupCodesSelectListeners() {
+  const filtreSelect = document.getElementById('filtreClientCodes');
+  if (filtreSelect) {
+    const selectedDiv = filtreSelect.querySelector('.select-selected');
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-client-id') {
+          const clientId = selectedDiv.getAttribute('data-client-id');
+          console.log('👤 Client sélectionné (affichage):', clientId);
+          handleClientSelectionForDisplay(clientId);
+        }
+      });
+    });
+    observer.observe(selectedDiv, { attributes: true });
+  }
+  
+  const ajoutSelect = document.getElementById('ajoutClientSelect');
+  if (ajoutSelect) {
+    const selectedDiv = ajoutSelect.querySelector('.select-selected');
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-client-id') {
+          const clientId = selectedDiv.getAttribute('data-client-id');
+          console.log('👤 Client sélectionné (ajout):', clientId);
+          handleClientSelectionForAdd(clientId);
+        }
+      });
+    });
+    observer.observe(selectedDiv, { attributes: true });
+  }
+}
+
+function setupCodesTabs() {
+  // Rien de plus ici, tout est géré dans setupCodesClientSelects()
+}
+
+function switchCodesTab(tabName) {
+  document.querySelectorAll('#codes .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#codes .tab-content').forEach(c => c.classList.remove('active'));
+  
+  const tabElement = document.querySelector(`#codes .tab[data-tab="${tabName}"]`);
+  const contentElement = document.getElementById(tabName);
+  
+  if (tabElement) tabElement.classList.add('active');
+  if (contentElement) contentElement.classList.add('active');
+  
+  if (tabName === 'afficher-codes') resetEditMode();
+  console.log('📁 Onglet changé:', tabName);
+}
+
+async function handleClientSelectionForDisplay(clientId) {
+  console.log('🔄 Traitement sélection affichage:', clientId);
+  
+  if (!clientId || clientId === 'null') {
+    showNoClientSelected();
+    document.getElementById('btnModifierCodes').disabled = true;
+    return;
+  }
+  
+  currentSelectedClientId = clientId;
+  document.getElementById('btnModifierCodes').disabled = false;
+  await loadClientCodes(clientId);
+  displayClientCodesForView();
+}
+
+async function handleClientSelectionForAdd(clientId) {
+  console.log('🔄 Traitement sélection ajout:', clientId);
+  
+  if (!clientId || clientId === 'null') {
+    hideClientExistsMessage();
+    clearForm();
+    document.getElementById('btnEnregistrerCodes').disabled = true;
+    return;
+  }
+  
+  document.getElementById('btnEnregistrerCodes').disabled = false;
+  await checkIfClientHasCodes(clientId);
+}
+
+async function loadClientCodes(clientId) {
+  try {
+    console.log(`📥 Chargement des codes pour: ${clientId}`);
+    const client = clients.find(c => c.id === clientId);
+    
+    if (client) {
+      codesData = client;
+      console.log('✅ Codes chargés depuis clients:', codesData);
+    } else {
+      codesData = null;
+      console.log('❌ Client non trouvé');
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur chargement codes:', error);
+    codesData = null;
+  }
+}
+
+async function checkIfClientHasCodes(clientId) {
+  const client = clients.find(c => c.id === clientId);
+  codesData = client || null;
+  
+  if (codesData && hasCodesData(codesData)) {
+    showClientExistsMessage();
+    fillFormWithData(codesData);
+    isEditMode = true;
+    document.getElementById('btnEnregistrerCodes').textContent = 'Mettre à jour les Codes';
+    console.log('ℹ️ Client existant - mode édition activé');
+  } else {
+    hideClientExistsMessage();
+    clearForm();
+    isEditMode = false;
+    document.getElementById('btnEnregistrerCodes').textContent = 'Enregistrer les Codes';
+    console.log('🆕 Nouveau client - formulaire vide');
+  }
+}
+
+function hasCodesData(client) {
+  return client.simpl_login || client.damancom_login || client.barid_login || 
+         client.email_login || client.marche_login || client.anapec_login;
+}
+
+function displayClientCodesForView() {
+  const container = document.getElementById('affichageCodesContainer');
+  
+  if (!currentSelectedClientId) {
+    showNoClientSelected();
+    return;
+  }
+  
+  if (!codesData) {
+    container.innerHTML = `
+      <div class="no-data-card">
+        <i class="fas fa-key" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+        <h3>Aucun code enregistré</h3>
+        <p>Ce client n'a pas encore de codes d'accès enregistrés</p>
+        <button class="btn-primary" onclick="switchCodesTab('ajouter-codes')" style="margin-top: 1rem;">
+          <i class="fas fa-plus"></i> Ajouter des codes
+        </button>
+      </div>
+    `;
+    return;
+  }
+  
+  const selectedClient = clients.find(c => c.id === currentSelectedClientId);
+  
+  container.innerHTML = `
+    <div class="card">
+      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+        <h3 style="margin: 0; color: var(--text-primary);">Codes d'accès - ${selectedClient.nom_raison_sociale}</h3>
+        <div style="font-size: 0.875rem; color: var(--text-secondary);">
+          Dernière modification: ${codesData.updated_at ? new Date(codesData.updated_at).toLocaleDateString('fr-FR') : 'Non disponible'}
+        </div>
+      </div>
+      
+      ${generateServiceCards()}
+      
+      <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+        <i class="fas fa-info-circle" style="color: var(--info-color); margin-right: 0.5rem;"></i>
+        <span style="color: var(--text-secondary); font-size: 0.875rem;">
+          Double-cliquez sur n'importe quel champ pour copier son contenu
+        </span>
+      </div>
+    </div>
+  `;
+  
+  setupCopyToClipboard();
+}
+
+function generateServiceCards() {
+  const services = [
+    {
+      name: 'SIMPL',
+      icon: 'fas fa-building',
+      fields: [
+        { label: 'Mot de passe Adhésion', value: codesData.simpl_mdp_adhesion, id: 'simpl_mdp_adhesion' },
+        { label: 'Login', value: codesData.simpl_login, id: 'simpl_login' },
+        { label: 'Mot de passe', value: codesData.simpl_mot_de_passe, id: 'simpl_mot_de_passe' },
+        { label: 'Email', value: codesData.simpl_email, id: 'simpl_email' }
+      ]
+    },
+    {
+      name: 'DAMANCOM',
+      icon: 'fas fa-cloud',
+      fields: [
+        { label: 'Login', value: codesData.damancom_login, id: 'damancom_login' },
+        { label: 'Mot de passe', value: codesData.damancom_mot_de_passe, id: 'damancom_mot_de_passe' },
+        { label: 'Email', value: codesData.damancom_email, id: 'damancom_email' }
+      ]
+    },
+    {
+      name: 'BARID E-SIGN',
+      icon: 'fas fa-signature',
+      fields: [
+        { label: 'Login', value: codesData.barid_login, id: 'barid_login' },
+        { label: 'Mot de passe', value: codesData.barid_mot_de_passe, id: 'barid_mot_de_passe' },
+        { label: 'Email', value: codesData.barid_email, id: 'barid_email' }
+      ]
+    },
+    {
+      name: 'EMAIL',
+      icon: 'fas fa-envelope',
+      fields: [
+        { label: 'Login (email)', value: codesData.email_login, id: 'email_login' },
+        { label: 'Mot de passe', value: codesData.email_mot_de_passe, id: 'email_mot_de_passe' }
+      ]
+    },
+    {
+      name: 'MARCHÉ PUBLIQUE',
+      icon: 'fas fa-gavel',
+      fields: [
+        { label: 'Login', value: codesData.marche_login, id: 'marche_login' },
+        { label: 'Mot de passe', value: codesData.marche_mot_de_passe, id: 'marche_mot_de_passe' }
+      ]
+    },
+    {
+      name: 'ANAPEC',
+      icon: 'fas fa-briefcase',
+      fields: [
+        { label: 'Login', value: codesData.anapec_login, id: 'anapec_login' },
+        { label: 'Mot de passe', value: codesData.anapec_mot_de_passe, id: 'anapec_mot_de_passe' }
+      ]
+    }
+  ];
+  
+  return services.map((service, index) => `
+    <div class="code-service-card">
+      <div class="code-service-header">
+        <div class="code-service-icon">
+          <i class="${service.icon}"></i>
+        </div>
+        <h4 class="code-service-title">${service.name}</h4>
+      </div>
+      
+      <div class="code-fields-container">
+        ${service.fields.map(field => `
+          <div class="code-field-group">
+            <span class="code-field-label">${field.label}</span>
+            <span class="code-field-value" data-field-id="${field.id}">
+              ${field.value || '<span style="color: var(--text-secondary); font-style: italic;">Non renseigné</span>'}
+            </span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function setupCopyToClipboard() {
+  document.querySelectorAll('.code-field-value').forEach(field => {
+    field.addEventListener('dblclick', function(e) {
+      const text = this.textContent.trim();
+      if (!text || text.includes('Non renseigné')) return;
+      copyFieldContent(this, text);
+    });
   });
 }
-window.loadAffectationChecklist = loadAffectationChecklist;
+
+function copyFieldContent(element, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    element.classList.add('copie-effect');
+    setTimeout(() => element.classList.remove('copie-effect'), 1000);
+  }).catch(err => {
+    console.error('Erreur copie:', err);
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    element.classList.add('copie-effect');
+    setTimeout(() => element.classList.remove('copie-effect'), 1000);
+  });
+}
+
+function switchToEditMode() {
+  if (!currentSelectedClientId) return;
+  
+  if (codesData) fillFormWithData(codesData);
+  
+  const selectElement = document.getElementById('ajoutClientSelect');
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  const client = clients.find(c => c.id === currentSelectedClientId);
+  
+  if (client) {
+    selectedDiv.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
+    selectedDiv.setAttribute('data-client-id', currentSelectedClientId);
+  }
+  
+  switchCodesTab('ajouter-codes');
+  
+  if (codesData) {
+    showClientExistsMessage();
+    isEditMode = true;
+    document.getElementById('btnEnregistrerCodes').textContent = 'Mettre à jour les Codes';
+  }
+}
+
+function fillFormWithData(data) {
+  const fields = [
+    'simpl_mdp_adhesion', 'simpl_login', 'simpl_mot_de_passe', 'simpl_email',
+    'damancom_login', 'damancom_mot_de_passe', 'damancom_email',
+    'barid_login', 'barid_mot_de_passe', 'barid_email',
+    'email_login', 'email_mot_de_passe',
+    'marche_login', 'marche_mot_de_passe',
+    'anapec_login', 'anapec_mot_de_passe'
+  ];
+  
+  fields.forEach(field => {
+    const element = document.getElementById(field);
+    if (element && data[field]) element.value = data[field];
+  });
+}
+
+function clearForm() {
+  document.getElementById('formCodesClient').reset();
+}
+
+function showClientExistsMessage() {
+  document.getElementById('messageClientExistant').style.display = 'flex';
+}
+
+function hideClientExistsMessage() {
+  document.getElementById('messageClientExistant').style.display = 'none';
+}
+
+function showNoClientSelected() {
+  const container = document.getElementById('affichageCodesContainer');
+  container.innerHTML = `
+    <div class="no-data-card">
+      <i class="fas fa-hand-pointer" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+      <h3>Sélectionnez un client</h3>
+      <p>Veuillez choisir un client dans la liste déroulante pour afficher ses codes d'accès</p>
+    </div>
+  `;
+}
+
+function cancelEdit() {
+  clearForm();
+  hideClientExistsMessage();
+  switchCodesTab('afficher-codes');
+}
+
+function resetEditMode() {
+  isEditMode = false;
+  document.getElementById('btnEnregistrerCodes').textContent = 'Enregistrer les Codes';
+}
+
+async function handleSaveCodes(e) {
+  e.preventDefault();
+  
+  const clientId = getSelectedClientId('ajoutClientSelect');
+  if (!clientId) {
+    alert('❌ Veuillez sélectionner un client');
+    return;
+  }
+  
+  try {
+    const formData = getFormData();
+    
+    const { data, error } = await supabase
+      .from('clients')
+      .update(formData)
+      .eq('id', clientId)
+      .select();
+    
+    if (error) throw error;
+    
+    if (data && data[0]) {
+      alert(`✅ Codes ${isEditMode ? 'mis à jour' : 'enregistrés'} avec succès !`);
+      currentSelectedClientId = clientId;
+      await loadClients();
+      await loadClientCodes(clientId);
+      switchCodesTab('afficher-codes');
+      displayClientCodesForView();
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur sauvegarde codes:', error);
+    alert(`❌ Erreur lors de la sauvegarde: ${error.message}`);
+  }
+}
+
+function getFormData() {
+  const fields = [
+    'simpl_mdp_adhesion', 'simpl_login', 'simpl_mot_de_passe', 'simpl_email',
+    'damancom_login', 'damancom_mot_de_passe', 'damancom_email',
+    'barid_login', 'barid_mot_de_passe', 'barid_email',
+    'email_login', 'email_mot_de_passe',
+    'marche_login', 'marche_mot_de_passe',
+    'anapec_login', 'anapec_mot_de_passe'
+  ];
+  
+  const formData = {};
+  fields.forEach(field => {
+    const element = document.getElementById(field);
+    formData[field] = element.value.trim() || null;
+  });
+  
+  return formData;
+}
 
 /* =========================
-   GESTION DES UTILISATEURS
+   FONCTIONS GESTION UTILISATEURS
    ========================= */
 
-let allUsers = [];
-let activityLogs = [];
-
-
-// Initialisation
 function initializeUsersManagement() {
   console.log('👥 Initialisation gestion utilisateurs');
-  
   loadCurrentUser();
   setupUsersEventListeners();
   loadUsersData();
 }
 
-// Charger l'utilisateur courant
 function loadCurrentUser() {
   const savedUser = localStorage.getItem('currentUser');
   if (savedUser) {
@@ -4435,25 +3214,18 @@ function loadCurrentUser() {
   }
 }
 
-// Mettre à jour l'UI selon le rôle
 function updateUserUI() {
-  // Afficher info utilisateur
   document.getElementById('currentUserName').textContent = currentUser.nom_complet;
   document.getElementById('currentUserRole').textContent = currentUser.role === 'admin' ? 'Administrateur' : 'utilisateur';
   
-  // Masquer onglet historique si pas admin
   if (currentUser.role !== 'admin') {
-    document.querySelectorAll('.admin-only').forEach(el => {
-      el.style.display = 'none';
-    });
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   } else {
     document.body.classList.add('user-admin');
   }
 }
 
-// Configuration des événements
 function setupUsersEventListeners() {
-  // Onglets
   document.querySelectorAll('#gestion-utilisateurs .tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
       const target = e.target.getAttribute('data-tab');
@@ -4461,15 +3233,11 @@ function setupUsersEventListeners() {
     });
   });
   
-  // Formulaire ajout utilisateur
   document.getElementById('formAddUser').addEventListener('submit', handleAddUser);
-  
-  // Filtres historique
   document.getElementById('filterUserActivity').addEventListener('change', loadActivityLogs);
   document.getElementById('filterActionType').addEventListener('change', loadActivityLogs);
 }
 
-// Changer d'onglet
 function switchUsersTab(tabName) {
   document.querySelectorAll('#gestion-utilisateurs .tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#gestion-utilisateurs .tab-content').forEach(c => c.classList.remove('active'));
@@ -4477,14 +3245,10 @@ function switchUsersTab(tabName) {
   document.querySelector(`#gestion-utilisateurs .tab[data-tab="${tabName}"]`).classList.add('active');
   document.getElementById(tabName).classList.add('active');
   
-  if (tabName === 'liste-utilisateurs') {
-    loadUsersList();
-  } else if (tabName === 'historique-activites' && currentUser.role === 'admin') {
-    loadActivityLogs();
-  }
+  if (tabName === 'liste-utilisateurs') loadUsersList();
+  else if (tabName === 'historique-activites' && currentUser.role === 'admin') loadActivityLogs();
 }
 
-// Charger les données utilisateurs
 async function loadUsersData() {
   try {
     const { data: users, error } = await supabase
@@ -4496,8 +3260,6 @@ async function loadUsersData() {
     
     allUsers = users || [];
     loadUsersList();
-    
-    // Peupler le filtre des utilisateurs pour l'historique
     populateUserFilter();
     
   } catch (error) {
@@ -4505,7 +3267,6 @@ async function loadUsersData() {
   }
 }
 
-// Afficher la liste des utilisateurs
 function loadUsersList() {
   const tbody = document.getElementById('usersTableBody');
   
@@ -4551,7 +3312,6 @@ function loadUsersList() {
   `).join('');
 }
 
-// Peupler le filtre des utilisateurs
 function populateUserFilter() {
   const select = document.getElementById('filterUserActivity');
   select.innerHTML = '<option value="tous">Tous les utilisateurs</option>';
@@ -4564,7 +3324,6 @@ function populateUserFilter() {
   });
 }
 
-// Générer mot de passe temporaire
 function generatePassword() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
   let password = '';
@@ -4574,7 +3333,6 @@ function generatePassword() {
   document.getElementById('newUserPassword').value = password;
 }
 
-// Ajouter un nouvel utilisateur
 async function handleAddUser(e) {
   e.preventDefault();
   
@@ -4584,7 +3342,6 @@ async function handleAddUser(e) {
   const password = document.getElementById('newUserPassword').value;
   
   try {
-    // Vérifier si l'email existe déjà
     const { data: existingUser } = await supabase
       .from('users')
       .select('id')
@@ -4596,8 +3353,7 @@ async function handleAddUser(e) {
       return;
     }
     
-    // Hasher le mot de passe (en production, utiliser bcrypt)
-    const passwordHash = btoa(password); // Temporaire - à remplacer par bcrypt
+    const passwordHash = btoa(password);
     
     const { data, error } = await supabase
       .from('users')
@@ -4615,18 +3371,14 @@ async function handleAddUser(e) {
     if (data && data[0]) {
       alert('✅ Utilisateur créé avec succès !\n\nIdentifiants à communiquer :\nEmail: ' + email + '\nMot de passe: ' + password);
       
-      // Journaliser l'action
       await logUserActivity('creation_utilisateur', 'gestion-utilisateurs', {
         user_created: data[0].id,
         email: email,
         role: role
       });
       
-      // Recharger la liste
       document.getElementById('formAddUser').reset();
       await loadUsersData();
-      
-      // Retourner à la liste
       switchUsersTab('liste-utilisateurs');
     }
     
@@ -4636,15 +3388,12 @@ async function handleAddUser(e) {
   }
 }
 
-// Activer/Désactiver utilisateur
 async function toggleUserStatus(userId, newStatus) {
   const user = allUsers.find(u => u.id === userId);
   if (!user) return;
   
   const action = newStatus ? 'activer' : 'désactiver';
-  if (!confirm(`Êtes-vous sûr de vouloir ${action} l'utilisateur ${user.nom_complet} ?`)) {
-    return;
-  }
+  if (!confirm(`Êtes-vous sûr de vouloir ${action} l'utilisateur ${user.nom_complet} ?`)) return;
   
   try {
     const { error } = await supabase
@@ -4654,12 +3403,10 @@ async function toggleUserStatus(userId, newStatus) {
     
     if (error) throw error;
     
-    // Journaliser
     await logUserActivity(newStatus ? 'activation_utilisateur' : 'desactivation_utilisateur', 'gestion-utilisateurs', {
       user_affected: userId
     });
     
-    // Recharger
     await loadUsersData();
     
   } catch (error) {
@@ -4668,17 +3415,15 @@ async function toggleUserStatus(userId, newStatus) {
   }
 }
 
-// Réinitialiser mot de passe
 async function resetUserPassword(userId) {
   const user = allUsers.find(u => u.id === userId);
   if (!user) return;
   
   const newPassword = prompt(`Réinitialiser le mot de passe de ${user.nom_complet}\n\nNouveau mot de passe temporaire:`, 'Temp123!');
-  
   if (!newPassword) return;
   
   try {
-    const passwordHash = btoa(newPassword); // Temporaire - bcrypt en production
+    const passwordHash = btoa(newPassword);
     
     const { error } = await supabase
       .from('users')
@@ -4687,7 +3432,6 @@ async function resetUserPassword(userId) {
     
     if (error) throw error;
     
-    // Journaliser
     await logUserActivity('reinitialisation_mdp', 'gestion-utilisateurs', {
       user_affected: userId
     });
@@ -4700,7 +3444,6 @@ async function resetUserPassword(userId) {
   }
 }
 
-// Charger l'historique des activités
 async function loadActivityLogs() {
   if (currentUser.role !== 'admin') return;
   
@@ -4717,13 +3460,8 @@ async function loadActivityLogs() {
       .order('created_at', { ascending: false })
       .limit(100);
     
-    if (userId !== 'tous') {
-      query = query.eq('user_id', userId);
-    }
-    
-    if (actionType !== 'tous') {
-      query = query.ilike('action', `%${actionType}%`);
-    }
+    if (userId !== 'tous') query = query.eq('user_id', userId);
+    if (actionType !== 'tous') query = query.ilike('action', `%${actionType}%`);
     
     const { data, error } = await query;
     
@@ -4737,7 +3475,6 @@ async function loadActivityLogs() {
   }
 }
 
-// Afficher l'historique des activités
 function displayActivityLogs() {
   const tbody = document.getElementById('activityTableBody');
   
@@ -4758,21 +3495,13 @@ function displayActivityLogs() {
         <strong>${log.users.nom_complet}</strong>
         <div style="font-size: 0.75rem; color: var(--text-secondary);">${log.users.email}</div>
       </td>
-      <td>
-        <span class="badge">${formatAction(log.action)}</span>
-      </td>
+      <td><span class="badge">${formatAction(log.action)}</span></td>
       <td>${formatPage(log.page)}</td>
-      <td>
-        ${log.details ? 
-          `<span style="font-size: 0.875rem; color: var(--text-secondary);">${formatDetails(log.details)}</span>` : 
-          '-'
-        }
-      </td>
+      <td>${log.details ? `<span style="font-size: 0.875rem; color: var(--text-secondary);">${formatDetails(log.details)}</span>` : '-'}</td>
     </tr>
   `).join('');
 }
 
-// Formater l'action pour l'affichage
 function formatAction(action) {
   const actions = {
     'connexion': 'Connexion',
@@ -4789,7 +3518,6 @@ function formatAction(action) {
   return actions[action] || action;
 }
 
-// Formater la page pour l'affichage
 function formatPage(page) {
   const pages = {
     'gestion-utilisateurs': 'Gestion Utilisateurs',
@@ -4802,18 +3530,14 @@ function formatPage(page) {
   return pages[page] || page;
 }
 
-// Formater les détails
 function formatDetails(details) {
   try {
-    return Object.entries(details).map(([key, value]) => {
-      return `${key}: ${value}`;
-    }).join(', ');
+    return Object.entries(details).map(([key, value]) => `${key}: ${value}`).join(', ');
   } catch {
     return '-';
   }
 }
 
-// Journaliser une activité utilisateur
 async function logUserActivity(action, page, details = null) {
   try {
     const { error } = await supabase
@@ -4823,18 +3547,15 @@ async function logUserActivity(action, page, details = null) {
         action: action,
         page: page,
         details: details,
-        ip_address: 'localhost' // En production, récupérer l'IP réelle
+        ip_address: 'localhost'
       }]);
     
-    if (error) {
-      console.error('❌ Erreur journalisation:', error);
-    }
+    if (error) console.error('❌ Erreur journalisation:', error);
   } catch (error) {
     console.error('❌ Erreur journalisation:', error);
   }
 }
 
-// Mettre à jour la dernière connexion
 async function updateLastLogin(userId) {
   try {
     await supabase
@@ -4845,141 +3566,408 @@ async function updateLastLogin(userId) {
     console.error('❌ Erreur mise à jour dernière connexion:', error);
   }
 }
+
 /* =========================
-   GESTION ARCHIVES CLIENTS  
+   FONCTIONS UTILITAIRES ET HELPERS
    ========================= */
 
-// Archiver un client (client → archive)
-async function archiverClient(clientId, raison) {
-  try {
-    const { error } = await supabase.rpc('archiver_client', {
-      client_id: clientId,
-      utilisateur_id: currentUser.id,
-      raison: raison
-    });
-    
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Erreur archivage:', error);
-    alert('Erreur lors de l\'archivage: ' + error.message);
-    return false;
-  }
-}
-
-// Restaurer un client (archive → client)
-async function restaurerClient(archiveId) {
-  try {
-    const { error } = await supabase.rpc('restaurer_client', {
-      archive_id: archiveId,
-      utilisateur_id: currentUser.id
-    });
-    
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Erreur restauration:', error);
-    alert('Erreur lors de la restauration: ' + error.message);
-    return false;
-  }
-}
-
-// Supprimer définitivement (archive → destruction)
-async function supprimerClientDefinitif(archiveId) {
-  if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce client ? Cette action est irréversible.')) {
-    return false;
-  }
+// Gestion navigation
+function setupNav(){
+  const pagesRestreintes = ['gestion-utilisateurs', 'situation-globale'];
   
-  try {
-    const { error } = await supabase.rpc('supprimer_client_definitif', {
-      archive_id: archiveId,
-      utilisateur_id: currentUser.id
-    });
+  document.querySelectorAll('.nav-link').forEach(link => {
+    const page = link.getAttribute('data-page');
     
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Erreur suppression:', error);
-    alert('Erreur lors de la suppression: ' + error.message);
-    return false;
-  }
-}
-
-async function loadClientsArchives() {
-  try {
-    console.log('📁 Chargement des clients archivés...');
-    
-    const { data, error } = await supabase
-      .from('clients_archives')
-      .select('*')
-      .order('archived_at', { ascending: false });
-    
-    if (error) {
-      console.error('❌ Erreur chargement archives:', error);
-      throw error;
+    if (pagesRestreintes.includes(page) && currentUser && currentUser.role !== 'admin') {
+      link.parentElement.style.display = 'none';
     }
     
-    console.log(`✅ ${data?.length || 0} clients archivés chargés`);
-    displayClientsArchives(data || []);
-    
-  } catch (error) {
-    console.error('❌ Erreur chargement archives:', error);
-    const tbody = document.getElementById('archivesTableBody');
-    if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="5" class="no-data">Erreur de chargement des archives</td></tr>';
+    link.addEventListener('click', (e) => {
+      if (pagesRestreintes.includes(page) && currentUser && currentUser.role !== 'admin') {
+        e.preventDefault();
+        alert('⛔ Accès réservé aux administrateurs');
+        return;
+      }
+      
+      navigateToPage(link);
+    });
+  });
+}
+
+function navigateToPage(link) {
+  const page = link.getAttribute('data-page');
+  
+  if (!checkPageAccess(page)) return;
+  
+  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  
+  link.classList.add('active');
+  const pg = document.getElementById(page);
+  if(pg) pg.classList.add('active');
+  
+  if(page === 'declarations') loadDeclarationData();
+  if(page === 'honoraires') refreshHonorairesUI();
+  if(page === 'clients') displayClients();
+  if(page === 'dashboard') loadDashboardData();
+  
+  if(page === 'situation-globale' && currentUser && currentUser.role === 'admin') loadSituationGlobale();
+  if(page === 'gestion-utilisateurs' && currentUser && currentUser.role === 'admin') loadUsersData();
+}
+
+// Custom Select System
+function initializeCustomSelects() {
+  document.querySelectorAll('.custom-select').forEach(select => setupCustomSelect(select));
+}
+
+function setupCustomSelect(selectElement) {
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  const itemsDiv = selectElement.querySelector('.select-items');
+  const searchInput = selectElement.querySelector('.select-search-input');
+  const optionsContainer = selectElement.querySelector('.select-options');
+  
+  function closeThisDropdown() {
+    itemsDiv.style.display = 'none';
+    selectedDiv.classList.remove('select-arrow-active');
+    if (searchInput) {
+      searchInput.value = '';
+      filterClientOptions(optionsContainer, '');
     }
+  }
+  
+  selectedDiv.addEventListener('click', function(e) {
+    e.stopPropagation();
+    closeAllSelects(this);
+    itemsDiv.style.display = 'block';
+    this.classList.add('select-arrow-active');
+    
+    setTimeout(() => {
+      if (searchInput) searchInput.focus();
+    }, 100);
+  });
+  
+  if (searchInput) {
+    searchInput.addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase();
+      filterClientOptions(optionsContainer, query);
+    });
+    
+    searchInput.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
+  
+  document.addEventListener('click', function(e) {
+    if (!selectElement.contains(e.target)) closeThisDropdown();
+  });
+  
+  itemsDiv.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+  
+  optionsContainer.addEventListener('click', function(e) {
+    const option = e.target.closest('div[data-client-id]');
+    if (option) {
+      const clientId = option.getAttribute('data-client-id');
+      const clientText = option.textContent;
+      
+      selectedDiv.textContent = clientText;
+      selectedDiv.setAttribute('data-client-id', clientId);
+      closeThisDropdown();
+      handleClientSelectionAfterChoose(selectElement.id, clientId);
+    }
+  });
+}
+
+function handleClientSelectionAfterChoose(selectId, clientId) {
+  console.log(`✅ Sélection: ${selectId} -> Client: ${clientId}`);
+  
+  switch(selectId) {
+    case 'clientSelection': loadAffectationChecklist(); break;
+    case 'filtreClient': loadEcheancesTable(); break;
+    case 'honorairesClientSelect': 
+      honosClientId = clientId;
+      refreshHonorairesUI(); 
+      break;
+    case 'codeClientSelect': 
+      selectedCodeClientId = clientId;
+      if (clientId) {
+        const selectedClient = clients.find(c => c.id === clientId);
+        updateSelectedClientInfo(selectedClient);
+        loadClientCodes(clientId);
+      } else {
+        clearSelectedClientInfo();
+        clearCodesGrid();
+      }
+      updateCodesUI();
+      break;
   }
 }
 
-// Charger la liste des clients archivés
-function displayClientsArchives(archives) {
-  const tbody = document.getElementById('archivesTableBody');
-  
-  if (!tbody) {
-    console.error('❌ Tableau des archives non trouvé');
+function filterClientOptions(optionsContainer, query) {
+  const allOptions = optionsContainer.querySelectorAll('div[data-client-id]');
+  allOptions.forEach(option => {
+    const text = option.textContent.toLowerCase();
+    if (text.includes(query)) option.style.display = 'block';
+    else option.style.display = 'none';
+  });
+}
+
+function closeAllSelects(exceptElement) {
+  document.querySelectorAll('.select-items').forEach(item => item.style.display = 'none');
+  document.querySelectorAll('.select-selected').forEach(selected => selected.classList.remove('select-arrow-active'));
+}
+
+function populateCustomSelect(selectId, clients, selectedId = null, includeAllOption = false) {
+  const selectElement = document.getElementById(selectId);
+  if (!selectElement) {
+    console.error(`❌ Selecteur ${selectId} non trouvé`);
     return;
   }
   
-  if (!archives.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client archivé</td></tr>';
+  const optionsContainer = selectElement.querySelector('.select-options');
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  
+  if (!optionsContainer) {
+    console.error('❌ Conteneur d\'options non trouvé');
     return;
   }
   
-  tbody.innerHTML = archives.map(archive => `
-    <tr>
-      <td>${archive.nom_raison_sociale || 'Non renseigné'}</td>
-      <td>${archive.ice || '-'}</td>
-      <td>${archive.archived_at ? new Date(archive.archived_at).toLocaleDateString('fr-FR') : '-'}</td>
-      <td>${archive.raison_archivage || 'Non spécifiée'}</td>
-      <td class="actions">
-        <button class="btn-success" onclick="restaurerClientPrompt('${archive.id}')">
-          <i class="fas fa-undo"></i> Restaurer
-        </button>
-        <button class="btn-secondary" onclick="supprimerClientDefinitifPrompt('${archive.id}')">
-          <i class="fas fa-trash"></i> Supprimer
-        </button>
-      </td>
-    </tr>
-  `).join('');
+  optionsContainer.innerHTML = '';
   
-  console.log('✅ Affichage des archives mis à jour');
-}
-async function restaurerClientPrompt(archiveId) {
-  if (confirm('Êtes-vous sûr de vouloir restaurer ce client ?')) {
-    const success = await restaurerClient(archiveId);
-    if (success) {
-      alert('Client restauré avec succès !');
-      loadClientsArchives();
+  if (includeAllOption) {
+    const allOption = document.createElement('div');
+    allOption.textContent = 'Tous les clients';
+    allOption.setAttribute('data-client-id', 'tous');
+    optionsContainer.appendChild(allOption);
+  }
+  
+  clients.forEach(client => {
+    const option = document.createElement('div');
+    option.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
+    option.setAttribute('data-client-id', client.id);
+    optionsContainer.appendChild(option);
+  });
+  
+  if (selectedId) {
+    const selectedClient = clients.find(c => c.id === selectedId);
+    if (selectedClient) {
+      selectedDiv.textContent = `${selectedClient.nom_raison_sociale}${selectedClient.ice ? ' - ' + selectedClient.ice : ''}`;
+      selectedDiv.setAttribute('data-client-id', selectedId);
     }
+  } else if (includeAllOption) {
+    selectedDiv.textContent = 'Tous les clients';
+    selectedDiv.setAttribute('data-client-id', 'tous');
+  }
+  
+  console.log(`✅ Selecteur ${selectId} peuplé avec ${clients.length} clients`);
+}
+
+function getSelectedClientId(selectId) {
+  const selectElement = document.getElementById(selectId);
+  if (!selectElement) return null;
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  return selectedDiv.getAttribute('data-client-id');
+}
+
+// Gestion des menus globaux
+function setupGlobalMenus(){
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+
+    if(t.closest('#clients')){
+      const btn = t.closest('.action-toggle');
+      if(btn){
+        const id = btn.getAttribute('data-id');
+        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+        const menu = document.getElementById(`client-menu-${id}`);
+        if(menu) menu.classList.add('show');
+        return;
+      }
+      
+      const item = t.closest('.menu-item');
+      if(item){
+        const id = item.getAttribute('data-id');
+        const action = item.getAttribute('data-action');
+        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+        return;
+      }
+    }
+
+    if(t.closest('#echeances')){
+      const btn = t.closest('.action-toggle');
+      if(btn){
+        const id = btn.getAttribute('data-id');
+        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+        const menu = document.getElementById(`menu-${id}`); 
+        if(menu) menu.classList.add('show');
+        return;
+      }
+      
+      const item = t.closest('.menu-item');
+      if(item){
+        mettreAJourStatutEcheance(item.getAttribute('data-id'), item.getAttribute('data-action'));
+        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+        return;
+      }
+      
+      const reset = t.closest('.reset-btn');
+      if(reset){ 
+        reinitialiserStatut(reset.getAttribute('data-id')); 
+        return; 
+      }
+    }
+
+    if(!t.closest('.action-dropdown')) {
+      document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+    }
+  });
+}
+
+// Utilitaires dates
+function toYMDLocal(date){
+  if (!(date instanceof Date)) {
+    console.error('❌ Date invalide:', date);
+    return '2024-01-01';
+  }
+  
+  try {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  } catch (error) {
+    console.error('❌ Erreur formatage date:', error);
+    return '2024-01-01';
   }
 }
 
-async function supprimerClientDefinitifPrompt(archiveId) {
-  if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce client ? Cette action est irréversible.')) {
-    const success = await supprimerClientDefinitif(archiveId);
-    if (success) {
-      alert('Client supprimé définitivement !');
-      loadClientsArchives();
-    }
+function parseYMDLocal(s){
+  if (!s) return new Date();
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatDateForInput(dateString) {
+  if (!dateString) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString;
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateForDisplay(dateString) {
+  if (!dateString) return '';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    
+    return date.toLocaleDateString('fr-FR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return dateString;
   }
 }
+
+// Utilitaires clients
+function updateClientSelection(){
+  populateCustomSelect('clientSelection', clients, null, false);
+}
+
+function updateFiltreClient(){
+  populateCustomSelect('filtreClient', clients, 'tous', true);
+}
+
+function fillHonorairesClients(list){
+  const data = list || clients;
+  populateCustomSelect('honorairesClientSelect', data, honosClientId, false);
+}
+
+// Mise à jour date
+function updateDate(){
+  const now = new Date();
+  document.getElementById('currentDate').textContent = now.toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long', 
+    day: 'numeric'
+  });
+}
+
+/* =========================
+   GESTIONNAIRES D'ÉVÉNEMENTS
+   ========================= */
+
+// Déclarations
+document.getElementById('clientSelection').addEventListener('change', loadAffectationChecklist);
+document.getElementById('anneeAffectation').addEventListener('change', loadAffectationChecklist);
+document.getElementById('anneeSelection').addEventListener('change', loadEcheancesTable);
+document.getElementById('filtreEtat').addEventListener('change', loadEcheancesTable);
+document.getElementById('filtreClient').addEventListener('change', loadEcheancesTable);
+
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  localStorage.removeItem('currentUser');
+  currentUser = null;
+  showLogin();
+});
+
+/* =========================
+   INITIALISATION DE L'APPLICATION
+   ========================= */
+
+async function initializeApp(){
+  console.log('Initialisation de l application...');
+  updateDate();
+  
+  const savedUser = localStorage.getItem('currentUser');
+  if (savedUser) {
+    currentUser = JSON.parse(savedUser);
+    console.log('👤 Utilisateur:', currentUser.nom_complet, '- Rôle:', currentUser.role);
+  }
+  
+  try {
+    await Promise.all([ 
+      loadClients(),
+      loadDeclarationTypes(), 
+      loadClientDeclarations(), 
+      loadEcheances(), 
+      loadDashboardData(),
+      loadHonorairesFromSupabase()
+    ]);
+    
+    setupNav();
+    setupDeclarationsTabs();
+    setupGlobalMenus();
+    setupHonoraires();
+    initializeCustomSelects();
+    
+    if (currentUser && currentUser.role === 'admin') {
+      initializeSituationGlobale();
+      initializeUsersManagement();
+    }
+    
+    initializeCodesPage();
+    setupEditClientSelect(); 
+    setupViewClientSelect();
+    setupPrintButton();
+    
+    console.log('Application initialisée avec succès');
+  } catch (error) {
+    console.error('Erreur lors de l initialisation:', error);
+  }
+}
+
+// Exporter certaines fonctions globales
+window.loadAffectationChecklist = loadAffectationChecklist;

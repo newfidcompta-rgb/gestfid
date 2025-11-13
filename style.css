@@ -778,44 +778,53 @@ body {
 
 /* Menu d'actions pour échéances */
 .action-dropdown {
-  position: relative;
+  position: relative !important;
   display: inline-block;
 }
 
 .action-menu {
-  position: absolute;
-  top: 110%;
-  right: 0;
-  min-width: 170px;
-  background: #fff;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: var(--shadow-lg);
-  padding: .25rem;
-  display: none;
-  z-index: 1000;
+    position: absolute !important;
+    top: 100%;
+    right: 0;
+    min-width: 170px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    padding: .25rem;
+    display: none;
+    z-index: 1000 !important;
+    margin-top: 2px;
+}
+
+/* Version menu vers le haut */
+.action-menu.open-up {
+    bottom: 100% !important;
+    top: auto !important;
+    margin-top: 0;
+    margin-bottom: 2px;
 }
 
 .action-menu.show {
-  display: block;
+    display: block !important;
 }
 
 .action-menu .menu-item {
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-  padding: .5rem .75rem;
-  cursor: pointer;
-  border-radius: 6px;
-  font-size: .9rem;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    padding: .5rem .75rem;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: .9rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
 }
 
 .action-menu .menu-item:hover {
-  background: var(--bg-secondary);
+    background: var(--bg-secondary);
 }
 
 /* ============================================
@@ -841,6 +850,25 @@ body {
 /* Style quand le menu est ouvert */
 .dropdown.active .action-btn {
   background: var(--primary-dark);
+}
+/* Correction spécifique pour les échéances */
+#echeances .declarations-table-container {
+    position: relative;
+    overflow: visible !important;
+    z-index: 1;
+}
+
+#echeances .clients-table {
+    position: relative;
+}
+
+#echeances .clients-table td.actions {
+    position: relative;
+}
+
+/* Style quand le menu est ouvert */
+.dropdown.active .action-btn {
+    background: var(--primary-dark);
 }
 
 /* ============================================
