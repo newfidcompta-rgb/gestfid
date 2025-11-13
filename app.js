@@ -1054,66 +1054,78 @@ function handleClientsSearch(e) {
   
   displayFilteredClients(filteredClients);
 }
-// Fonction clic sur client ammène ves consulter ce Client
+// Fonction clic sur client amène vers consulter ce Client
+// Ne gère plus le double-clic ni la nav sur ligne.
+// Initialise juste le menu "Action" une seule fois.
 function setupClientRowNavigation() {
-  const tbody = document.getElementById('clientsTableBody');
-  if (!tbody) return;
+  if (document.__clientsMenuBound) return;
+  document.__clientsMenuBound = true;
 
-  // Évite les doublons
-  if (tbody.__navBound) return;
-  tbody.__navBound = true;
+  document.addEventListener('click', (e) => {
+    const dropdown = e.target.closest('.dropdown');
 
-  const goToView = (e) => {
-    const cell = e.target.closest('td');
-    if (!cell) return;
-
-    // ignorer clic sur le badge statut
-    if (cell.querySelector('.statut-badge')) return;
-
-    const row = cell.closest('tr.client-row');
-    if (!row) return;
-
-    const clientId = row.getAttribute('data-client-id');
-    if (!clientId) return;
-
-    // 1) Basculer vers l’onglet “consulter-un-client”
-    document.querySelectorAll('#clients .tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('#clients .tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelector('#clients .tab[data-tab="consulter-un-client"]')?.classList.add('active');
-    document.getElementById('consulter-un-client')?.classList.add('active');
-
-    // 2) Mettre à jour le custom select (déclenchera handleViewClientSelection via MutationObserver)
-    const selectElement = document.getElementById('viewClientSelect');
-    if (!selectElement) {
-      // fallback direct
-      handleViewClientSelection(clientId);
+    // Fermer tous les menus si clic à l'extérieur
+    if (!dropdown) {
+      document.querySelectorAll('.dropdown-content').forEach(menu => {
+        menu.style.display = 'none';
+        menu.classList.remove('open-up');
+        menu.style.top = '';
+        menu.style.bottom = '';
+        menu.style.visibility = '';
+      });
       return;
     }
 
-    const nativeSelect = selectElement.querySelector('select');
-    if (nativeSelect) {
-      nativeSelect.value = String(clientId);
-      nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    const menu = dropdown.querySelector('.dropdown-content');
+    if (!menu) return;
+
+    const isOpen = menu.style.display === 'block';
+
+    // Fermer les autres
+    document.querySelectorAll('.dropdown-content').forEach(m => {
+      if (m !== menu) {
+        m.style.display = 'none';
+        m.classList.remove('open-up');
+        m.style.top = '';
+        m.style.bottom = '';
+        m.style.visibility = '';
+      }
+    });
+
+    if (isOpen) {
+      menu.style.display = 'none';
+      menu.classList.remove('open-up');
+      menu.style.top = '';
+      menu.style.bottom = '';
+      menu.style.visibility = '';
+      return;
     }
 
-    const selectedDiv = selectElement.querySelector('.select-selected');
-    if (selectedDiv) {
-      const client = (clients || []).find(c => String(c.id) === String(clientId));
-      const label = client?.nom_raison_sociale
-        ? `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`
-        : `Client #${clientId}`;
-      selectedDiv.textContent = label;
-      selectedDiv.setAttribute('data-client-id', String(clientId)); // → MutationObserver appelle handleViewClientSelection
+    // Mesurer avant de décider haut/bas
+    menu.style.visibility = 'hidden';
+    menu.style.display = 'block';
+    menu.style.top = '100%';
+    menu.style.bottom = 'auto';
+
+    const dropRect = dropdown.getBoundingClientRect();
+    const menuRect  = menu.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - dropRect.bottom;
+    const spaceAbove = dropRect.top;
+
+    if (spaceBelow < menuRect.height && spaceAbove > spaceBelow) {
+      menu.style.top = 'auto';
+      menu.style.bottom = '100%';
+      menu.classList.add('open-up');
     } else {
-      handleViewClientSelection(clientId);
+      menu.style.top = '100%';
+      menu.style.bottom = 'auto';
+      menu.classList.remove('open-up');
     }
-  };
 
-  // Navigation sur clic
-  tbody.addEventListener('click', goToView, { passive: true });
-  // Navigation aussi sur double-clic (aucune copie ici)
-  tbody.addEventListener('dblclick', goToView, { passive: true });
+    menu.style.visibility = '';
+  }, { passive: true });
 }
+
 
 // Afficher les clients filtrés
 function displayFilteredClients(filteredClients) {
@@ -1123,13 +1135,26 @@ function displayFilteredClients(filteredClients) {
     tbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun client trouvé</td></tr>';
     return;
   }
+
+  // CORRECTION : Ajouter le bouton Action dans le HTML
   tbody.innerHTML = filteredClients.map(c => `
     <tr class="client-row" data-client-id="${c.id}">
       <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
       <td data-field="ice">${c.ice || '-'}</td>
-      <td data-field="ville">${c.ville || '-'}</td>
+      <td data-field="Code client">${c.code_client || '-'}</td>
       <td data-field="contact">${c.contact || '-'}</td>
-      <td><span class="statut-badge ${c.statut || 'actif'}">${c.statut || 'Actif'}</span></td>
+      
+      <td class="actions">
+        <div class="dropdown">
+          <button class="action-btn">Action ▾</button>
+          <div class="dropdown-content">
+            <a href="#" class="action-view">Consulter</a>
+            <a href="#" class="action-edit">Modifier</a>
+            <a href="#" class="action-affect">Affecter déclarations</a>
+            <a href="#" class="action-archive">Archiver</a>
+          </div>
+        </div>
+      </td>
     </tr>
   `).join('');
 
@@ -1191,19 +1216,25 @@ function displayClients(){
     return;
   }
   tbody.innerHTML = clients.map(c => `
-    <tr class="client-row" data-client-id="${c.id}">
-      <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
-      <td data-field="ice">${c.ice || '-'}</td>
-      <td data-field="ville">${c.ville || '-'}</td>
-      <td data-field="contact">${c.contact || '-'}</td>
-      <td><span class="statut-badge ${c.statut || 'actif'}">${c.statut || 'Actif'}</span></td>
-    </tr>
+  <tr class="client-row" data-client-id="${c.id}">
+    <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
+    <td data-field="ice">${c.ice || '-'}</td>
+    <td data-field="Code client">${c.code_client || '-'}</td>
+    <td data-field="contact">${c.contact || '-'}</td>
+    
     <td class="actions">
-    <button class="btn-warning" onclick="archiverClientPrompt('${c.id}')">
-    <i class="fas fa-archive"></i> Archiver
-    </button>
+      <div class="dropdown">
+        <button class="action-btn">Action ▾</button>
+        <div class="dropdown-content">
+          <a href="#" class="action-view">Consulter</a>
+          <a href="#" class="action-edit">Modifier</a>
+          <a href="#" class="action-affect">Affecter déclarations</a>
+          <a href="#" class="action-archive">Archiver</a>
+        </div>
+      </div>
     </td>
-  `).join('');
+  </tr>
+`).join('');
 
   // Seulement navigation
   setupClientRowNavigation();
@@ -1384,6 +1415,198 @@ async function handleAddClient() {
     alert('Erreur lors de l\'enregistrement du client');
   }
 }
+// =====================================================
+// 🎯 GESTION UNIFIÉE DES ACTIONS CLIENTS
+// =====================================================
+
+// Supprimer l'ancien gestionnaire et utiliser celui-ci
+document.addEventListener('click', (e) => {
+  // Gestion CONSULTER
+  const btnView = e.target.closest('.action-view');
+  if (btnView) {
+    e.preventDefault();
+    handleClientAction('view', btnView);
+    return;
+  }
+
+  // Gestion MODIFIER
+  const btnEdit = e.target.closest('.action-edit');
+  if (btnEdit) {
+    e.preventDefault();
+    handleClientAction('edit', btnEdit);
+    return;
+  }
+
+  // Gestion AFFECTER DÉCLARATIONS
+  const btnAffect = e.target.closest('.action-affect');
+  if (btnAffect) {
+    e.preventDefault();
+    handleClientAction('affect', btnAffect);
+    return;
+  }
+});
+
+// Fonction principale de gestion des actions
+function handleClientAction(action, buttonElement) {
+  const row = buttonElement.closest('tr.client-row');
+  const clientId = row?.dataset.clientId;
+  if (!clientId) return;
+
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+
+  // Mapping des actions vers les pages
+  const actionConfig = {
+    'view': {
+      tab: 'consulter-un-client',
+      selectId: 'viewClientSelect',
+      handler: handleViewClientSelection,
+      page: 'clients'
+    },
+    'edit': {
+      tab: 'modifier', 
+      selectId: 'editClientSelect',
+      handler: handleEditClientSelection,
+      page: 'clients'
+    },
+    'affect': {
+      tab: 'affectation',
+      selectId: 'clientSelection',
+      handler: loadAffectationChecklist,
+      page: 'declarations' // ← CORRECTION : Page DÉCLARATIONS
+    }
+  };
+
+  const config = actionConfig[action];
+  if (!config) return;
+
+  // 1. Navigation vers la page cible (Clients ou Déclarations)
+  navigateToTargetPage(config.page, config.tab);
+
+  // 2. Sélectionner le client dans le dropdown
+  setTimeout(() => {
+    selectClientInDropdown(config.selectId, clientId, client);
+    
+    // 3. Appeler le handler spécifique après la sélection
+    if (config.handler) {
+      setTimeout(() => {
+        config.handler(clientId);
+      }, 200);
+    }
+  }, 150);
+
+  // 4. Fermer le menu dropdown
+  closeActionDropdown(buttonElement);
+}
+
+// Navigation vers la page cible (Clients ou Déclarations)
+function navigateToTargetPage(pageName, tabName) {
+  // Navigation vers la page principale
+  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  
+  document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+  document.getElementById(pageName).classList.add('active');
+
+  // Navigation vers l'onglet spécifique
+  if (pageName === 'clients') {
+    document.querySelectorAll('#clients .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#clients .tab-content').forEach(c => c.classList.remove('active'));
+    
+    document.querySelector(`#clients .tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+  } else if (pageName === 'declarations') {
+    document.querySelectorAll('#declarations .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#declarations .tab-content').forEach(c => c.classList.remove('active'));
+    
+    document.querySelector(`#declarations .tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+  }
+}
+
+// Sélectionner le client dans le dropdown
+function selectClientInDropdown(selectId, clientId, client) {
+  const selectElement = document.getElementById(selectId);
+  if (!selectElement) {
+    console.error(`Dropdown ${selectId} non trouvé`);
+    return;
+  }
+
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  if (!selectedDiv) {
+    console.error('Element .select-selected non trouvé');
+    return;
+  }
+
+  // Mettre à jour l'affichage ET l'attribut data-client-id
+  selectedDiv.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
+  selectedDiv.setAttribute('data-client-id', clientId);
+
+  console.log(`✅ Client sélectionné dans ${selectId}:`, client.nom_raison_sociale);
+  
+  // Mettre à jour les options du selecteur
+  updateCustomSelectOptions(selectId, clientId);
+  
+  // FORCER le déclenchement de l'événement de sélection
+  triggerSelectionEvent(selectId, clientId);
+}
+
+// Déclencher l'événement de sélection pour les handlers
+function triggerSelectionEvent(selectId, clientId) {
+  // Pour le selecteur d'affectation des déclarations
+  if (selectId === 'clientSelection') {
+    console.log('🚀 Déclenchement loadAffectationChecklist pour:', clientId);
+    // Le handler sera appelé automatiquement via l'observateur MutationObserver
+  }
+}
+
+// Mettre à jour les options du selecteur custom
+function updateCustomSelectOptions(selectId, selectedClientId) {
+  const selectElement = document.getElementById(selectId);
+  if (!selectElement) return;
+
+  const optionsContainer = selectElement.querySelector('.select-options');
+  if (!optionsContainer) return;
+
+  // Mettre à jour la classe active sur l'option sélectionnée
+  const allOptions = optionsContainer.querySelectorAll('div[data-client-id]');
+  allOptions.forEach(option => {
+    if (option.getAttribute('data-client-id') === selectedClientId) {
+      option.classList.add('same-as-selected');
+    } else {
+      option.classList.remove('same-as-selected');
+    }
+  });
+}
+
+// Fermer le menu dropdown
+function closeActionDropdown(buttonElement) {
+  const dropdown = buttonElement.closest('.dropdown-content');
+  if (dropdown) {
+    dropdown.style.display = 'none';
+  }
+}
+
+// =====================================================
+// 🎯 GESTION SPÉCIFIQUE POUR ARCHIVER (existant - à garder)
+// =====================================================
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.action-archive');
+  if (!btn) return;
+  e.preventDefault();
+
+  const row = btn.closest('tr');
+  const clientId = row?.dataset.clientId;
+  if (!clientId) return;
+
+  const raison = prompt('Raison de l\'archivage ?');
+  if (raison === null) return;
+
+  if (await archiverClient(clientId, raison)) {
+    alert('✅ Client archivé avec succès !');
+    loadClients(); // Recharger la liste
+  }
+});
 
 /* =========================
    GESTION DU FORMULAIRE MODIFIER
@@ -2378,13 +2601,15 @@ async function reinitialiserStatut(id){
    SYSTEME ACCORDEON POUR AFFECTATION - NOUVELLES CATEGORIES
    ========================= */
 
-function loadAffectationChecklist(){
+function loadAffectationChecklist(clientId = null){
   const container = document.getElementById('checklistContent');
-  const clientId = getSelectedClientId('clientSelection');
+  
+  // ✅ CORRECTION : Accepter clientId en paramètre OU le récupérer du selecteur
+  const targetClientId = clientId || getSelectedClientId('clientSelection');
   const annee = document.getElementById('anneeAffectation').value;
   const btn = document.getElementById('affecterDeclarationsBtn');
 
-  if(!clientId || clientId === 'tous') {
+  if(!targetClientId || targetClientId === 'tous') {
     container.innerHTML = '<div class="no-data">Sélectionnez un client</div>'; 
     btn.style.display = 'none'; 
     return;
@@ -2392,12 +2617,15 @@ function loadAffectationChecklist(){
   
   btn.style.display = 'block';
 
-  const declAffect = clientDeclarations.filter(cd => cd.client_id === clientId && cd.annee_comptable == annee);
+  // ✅ CORRECTION : Utiliser targetClientId au lieu de clientId
+  const declAffect = clientDeclarations.filter(cd => cd.client_id === targetClientId && cd.annee_comptable == annee);
   
   const has = (s, ...qs) => (s ? qs.some(q => s.toLowerCase().includes(q.toLowerCase())) : false);
   const isP = (d, p) => (d.periodicite || '').toLowerCase() === p;
 
   // NOUVELLES CATEGORIES SELON TA LISTE
+
+  
   const sections = [
     {
       title: 'CNSS',
@@ -3042,24 +3270,15 @@ async function loadClientCodes(clientId) {
   try {
     console.log(`📥 Chargement des codes pour: ${clientId}`);
     
-    const { data, error } = await supabase
-      .from('codes_acces')
-      .select('*')
-      .eq('client_id', clientId)
-      .single();
+    // CORRECTION : Lire directement depuis la table clients
+    const client = clients.find(c => c.id === clientId);
     
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Aucun enregistrement trouvé - c'est normal pour un nouveau client
-        codesData = null;
-        console.log('✅ Aucun code existant pour ce client');
-      } else {
-        console.error('❌ Erreur Supabase:', error);
-        throw error;
-      }
+    if (client) {
+      codesData = client;
+      console.log('✅ Codes chargés depuis clients:', codesData);
     } else {
-      codesData = data;
-      console.log('✅ Codes chargés:', codesData);
+      codesData = null;
+      console.log('❌ Client non trouvé');
     }
     
   } catch (error) {
@@ -3070,23 +3289,29 @@ async function loadClientCodes(clientId) {
 
 // Vérifier si un client a déjà des codes
 async function checkIfClientHasCodes(clientId) {
-  await loadClientCodes(clientId);
+  // CORRECTION : Vérifier directement dans les clients
+  const client = clients.find(c => c.id === clientId);
+  codesData = client || null;
   
-  if (codesData) {
-    // Client existe déjà
+  if (codesData && hasCodesData(codesData)) {
+    // Client existe déjà avec des codes
     showClientExistsMessage();
     fillFormWithData(codesData);
     isEditMode = true;
     document.getElementById('btnEnregistrerCodes').textContent = 'Mettre à jour les Codes';
     console.log('ℹ️ Client existant - mode édition activé');
   } else {
-    // Nouveau client
+    // Nouveau client ou sans codes
     hideClientExistsMessage();
     clearForm();
     isEditMode = false;
     document.getElementById('btnEnregistrerCodes').textContent = 'Enregistrer les Codes';
     console.log('🆕 Nouveau client - formulaire vide');
   }
+}
+function hasCodesData(client) {
+  return client.simpl_login || client.damancom_login || client.barid_login || 
+         client.email_login || client.marche_login || client.anapec_login;
 }
 // Afficher les codes en mode consultation
 function displayClientCodesForView() {
@@ -3355,34 +3580,22 @@ async function handleSaveCodes(e) {
   try {
     const formData = getFormData();
     
-    let result;
-    if (isEditMode) {
-      // Mise à jour
-      const { data, error } = await supabase
-        .from('codes_acces')
-        .update(formData)
-        .eq('client_id', clientId)
-        .select();
-      
-      if (error) throw error;
-      result = data?.[0];
-    } else {
-      // Insertion
-      const { data, error } = await supabase
-        .from('codes_acces')
-        .insert([{ client_id: clientId, ...formData }])
-        .select();
-      
-      if (error) throw error;
-      result = data?.[0];
-    }
+    // CORRECTION : Toujours faire un UPDATE sur la table clients
+    const { data, error } = await supabase
+      .from('clients')
+      .update(formData)
+      .eq('id', clientId)
+      .select();
     
-    if (result) {
+    if (error) throw error;
+    
+    if (data && data[0]) {
       alert(`✅ Codes ${isEditMode ? 'mis à jour' : 'enregistrés'} avec succès !`);
       
       // Recharger les données
       currentSelectedClientId = clientId;
-      await loadClientCodes(clientId);
+      await loadClients(); // Recharger tous les clients
+      await loadClientCodes(clientId); // Recharger les codes du client
       
       // Retourner à l'onglet affichage
       switchCodesTab('afficher-codes');
