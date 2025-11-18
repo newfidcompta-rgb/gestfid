@@ -2511,7 +2511,6 @@ function initializeEcheancesDefaults() {
 function loadAffectationChecklist(clientId = null){
   const container = document.getElementById('checklistContent');
   
-  // ✅ CORRECTION : Accepter clientId en paramètre OU le récupérer du selecteur
   const targetClientId = clientId || getSelectedClientId('clientSelection');
   const annee = document.getElementById('anneeAffectation').value;
   const btn = document.getElementById('affecterDeclarationsBtn');
@@ -2524,67 +2523,54 @@ function loadAffectationChecklist(clientId = null){
   
   btn.style.display = 'block';
 
-  // ✅ CORRECTION : Utiliser targetClientId au lieu de clientId
   const declAffect = clientDeclarations.filter(cd => cd.client_id === targetClientId && cd.annee_comptable == annee);
   
-  const has = (s, ...qs) => (s ? qs.some(q => s.toLowerCase().includes(q.toLowerCase())) : false);
-  const isP = (d, p) => (d.periodicite || '').toLowerCase() === p;
-
-  // NOUVELLES CATEGORIES SELON TA LISTE
-
-  
+  // ✅ NOUVELLE VERSION : Filtrage direct par type_declaration
   const sections = [
     {
       title: 'CNSS',
       id: 'cnss',
-      match: d => d.type_declaration === 'CNSS' || has(d.nom_template, 'cnss')
+      match: d => d.type_declaration === 'CNSS'
     },
     {
       title: 'TVA Mensuelle', 
       id: 'tva_mensuelle',
-      match: d => isP(d, 'mensuelle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))
+      match: d => d.type_declaration === 'TVA Mensuelle'
     },
     {
-      title: 'RAS IR/Salaires',
-      id: 'ras_ir_salaires',
-      match: d => (
-    // Spécifiquement les déclarations RAS IR sur salaires
-    (d.type_declaration === 'IR' && has(d.nom_template, 'salaire', 'traitements', 'salaires')) ||
-    // Ou les anciens noms de templates
-    has(d.nom_template, 'ir/salaire', 'ir salaire', 'ras/salaire', 'ras salaire')
-    ) && 
-    // S'assurer que c'est mensuel (pour exclure les annuelles)
-    (d.periodicite === 'mensuelle' || d.periodicite === 'Mensuelle')
+      title: 'RAS Sur Salaires',
+      id: 'ras_salaires',
+      match: d => d.type_declaration === 'RAS Sur Salaires'
     },
     {
       title: 'RAS Sur Loyer',
       id: 'ras_loyer',
-      match: d => has(d.type_declaration, 'ras', 'loyer') || has(d.nom_template, 'ras/loyer', 'ras loyer', 'loyer')
+      match: d => d.type_declaration === 'RAS Sur Loyer'
     },
     {
       title: 'IS - Acomptes',
       id: 'is_acomptes',
-      match: d => d.type_declaration === 'IS' && has(d.nom_template, 'acompte', 'premier', 'deuxième', 'troisième', 'quatrième', 't1', 't2', 't3', 't4')
+      match: d => d.type_declaration === 'IS - Acomptes'
     },
     {
       title: 'TVA Trimestrielle',
       id: 'tva_trimestrielle',
-      match: d => isP(d, 'trimestrielle') && (d.type_declaration === 'TVA' || has(d.nom_template, 'tva'))
+      match: d => d.type_declaration === 'TVA Trimestrielle'
     },
     {
       title: 'Délais de Paiement',
       id: 'delais_paiement',
-      match: d => has(d.nom_template, 'délai', 'delai', 'paiement')
+      match: d => d.type_declaration === 'Délais de Paiement'
     },
     {
       title: 'IS - Déclarations Annuelles',
       id: 'is_annuelles',
-      match: d => isP(d, 'annuelle') && d.type_declaration === 'IS'
+      match: d => d.type_declaration === 'IS - Déclarations Annuelles'
     },
     {
       title: 'IR - Déclarations Annuelles',
       id: 'ir_annuelles',
-      match: d => isP(d, 'annuelle') && d.type_declaration === 'IR'
+      match: d => d.type_declaration === 'IR - Déclarations Annuelles'
     }
   ];
 
@@ -2609,6 +2595,11 @@ function loadAffectationChecklist(clientId = null){
             <div class="declaration-info">
               <div class="declaration-name">${decl.nom_template}</div>
               <div class="declaration-dates">${d1.toLocaleDateString('fr-FR')} - ${d2.toLocaleDateString('fr-FR')}</div>
+              <div class="declaration-periodicite">
+                <span class="badge">${decl.periodicite}</span>
+                ${decl.mois_reference ? `Mois ${decl.mois_reference}` : ''}
+                ${decl.trimestre_reference ? `T${decl.trimestre_reference}` : ''}
+              </div>
             </div>
           </label>
         </div>`;
@@ -2642,6 +2633,8 @@ function loadAffectationChecklist(clientId = null){
   setupCheckboxHandlers(container);
   // Initialiser le bouton imprimer
   updatePrintButton();
+  
+  console.log('✅ Checklist chargée avec filtrage par type_declaration');
 }
 
 function initializeAccordions() {

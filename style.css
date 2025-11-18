@@ -3201,3 +3201,36 @@ Style pour les filtres Type declarations
 .dropdown-content.show {
   display: block;
 }
+
+/* Styles pour l'affichage de la checklist des déclarations */
+#checklistContent {
+  max-height: none !important; /* Supprime la limite de hauteur */
+  height: auto !important;
+  overflow-y: visible !important;
+}
+
+.category-content {
+  max-height: none !important;
+  overflow-y: visible !important;
+}
+
+.declaration-item {
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.declaration-item:last-child {
+  border-bottom: none;
+}
+
+/* Assurez-vous que le conteneur parent n'a pas de hauteur limitée */
+.tab-content {
+  overflow: visible !important;
+}
+
+/* Si vous utilisez un conteneur avec scroll, ajustez-le */
+.checklist-container {
+  max-height: none !important;
+  height: auto !important;
+  overflow: visible !important;
+}
