@@ -27,7 +27,7 @@
         <form id="loginForm">
           <div class="form-group">
             <label for="email">Email</label>
-            <input type="email" id="email" placeholder="votre@email.com" value="@newfid.com">
+            <input type="email" id="email" placeholder="votre@email.com" required>
           </div>
           <div class="form-group">
             <label for="password">Mot de passe</label>
@@ -726,6 +726,19 @@
         <option value="deposee">Déposée</option>
         <option value="payee">Payée</option>
       </select>
+      <!-- ✅ NOUVEAU : Filtre Type Déclaration -->
+      <select id="filtreTypeDeclaration" class="form-group">
+       <option value="tous">Tous les types</option>
+       <option value="CNSS">CNSS</option>
+       <option value="TVA Mensuelle">TVA Mensuelle</option>
+       <option value="RAS Sur Salaires">RAS IR/Salaires</option>
+       <option value="RAS Sur Loyer">RAS Sur Loyer</option>
+       <option value="IS - Acomptes">IS - Acomptes</option>
+       <option value="TVA Trimestrielle">TVA Trimestrielle</option>
+       <option value="Délais de Paiement">Délais de Paiement</option>
+       <option value="IS - Déclarations Annuelles">IS - Annuelles</option>
+       <option value="IR - Déclarations Annuelles">IR - Annuelles</option>
+      </select>
       <div class="form-group">
         <div class="custom-select-wrapper">
           <div class="custom-select" id="filtreClient">
@@ -791,175 +804,143 @@
   </div>
 </div>
 
-    <!-- =========================
-     PAGE HONORAIRES
-     ========================= -->
-<div id="honoraires" class="page">
-  <div class="header">
-    <h2>Honoraires</h2>
+      <!-- =========================
+           PAGE HONORAIRES
+           ========================= -->
+      <div id="honoraires" class="page">
+        <div class="header">
+          <h2>Honoraires</h2>
 
-    <div class="header-actions honoraires-header">
-      <div class="honos-search custom-select-wrapper">
-        <div class="custom-select" id="honorairesClientSelect">
-          <div class="select-selected">Sélectionner un client…</div>
-          <div class="select-items">
-            <div class="select-search">
-              <i class="fas fa-search"></i>
-              <input type="text" placeholder="Rechercher un client (nom, ICE)…" class="select-search-input">
+          <div class="header-actions honoraires-header">
+            <div class="honos-search custom-select-wrapper">
+              <div class="custom-select" id="honorairesClientSelect">
+                <div class="select-selected">Sélectionner un client…</div>
+                <div class="select-items">
+                  <div class="select-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Rechercher un client (nom, ICE)…" class="select-search-input">
+                  </div>
+                  <div class="select-options" id="clientOptionsHonoraires">
+                    <!-- Les options seront ajoutées dynamiquement -->
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="select-options" id="clientOptionsHonoraires">
-              <!-- Les options seront ajoutées dynamiquement -->
+
+            <select id="honorairesExerciceSelect" class="honos-select">
+              <option value="2024">2024</option>
+              <option value="2025" selected>2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Onglets -->
+        <div class="tabs honoraires-tabs">
+          <div class="tab active" data-tab="honos-facturations">Facturations</div>
+          <div class="tab" data-tab="honos-paiements">Paiements</div>
+          <div class="tab" data-tab="honos-situation">Situation</div>
+        </div>
+
+        <!-- FACTURATIONS -->
+        <div id="honos-facturations" class="tab-content active">
+          <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+            <button id="btnFacturerService" class="btn-primary">
+              <i class="fas fa-plus"></i> Facturer un service
+            </button>
+          </div>
+          <div class="card">
+            <table class="clients-table table-min">
+              <thead>
+                <tr>
+                  <th style="width:130px">Date</th>
+                  <th>Service (saisie libre)</th>
+                  <th style="width:110px">Exercice</th>
+                  <th style="width:150px">Montant (DH)</th>
+                  <th style="width:130px">Action</th>
+                </tr>
+              </thead>
+              <tbody id="factuTbody">
+                <tr><td colspan="5" class="no-data">Aucune facturation</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- PAIEMENTS -->
+        <div id="honos-paiements" class="tab-content">
+          <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+            <button id="btnAjouterPaiement" class="btn-success">
+              <i class="fas fa-money-bill"></i> Ajouter un paiement
+            </button>
+          </div>
+          <div class="card">
+            <table class="clients-table table-min">
+              <thead>
+                <tr>
+                  <th style="width:130px">Date</th>
+                  <th style="width:160px">Mode</th>
+                  <th>Référence</th>
+                  <th style="width:150px">Montant (DH)</th>
+                  <th style="width:130px">Action</th>
+                </tr>
+              </thead>
+              <tbody id="payTbody">
+                <tr><td colspan="5" class="no-data">Aucun paiement</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SITUATION -->
+        <div id="honos-situation" class="tab-content">
+          <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+            <button id="btnImprimerSituation" class="btn-primary">
+              <i class="fas fa-print"></i> Imprimer la situation
+            </button>
+          </div>
+          <div class="honos-split">
+            <div class="card">
+              <h4 class="honos-card-title">Services facturés</h4>
+              <table class="clients-table table-min">
+                <thead>
+                  <tr>
+                    <th style="width:130px">Date</th>
+                    <th>Libellé</th>
+                    <th style="width:150px">Montant (DH)</th>
+                  </tr>
+                </thead>
+                <tbody id="sitFactuTbody">
+                  <tr><td colspan="3" class="no-data">Aucune donnée</td></tr>
+                </tbody>
+            </table>
             </div>
+
+            <div class="card">
+              <h4 class="honos-card-title">Paiements</h4>
+              <table class="clients-table table-min">
+                <thead>
+                  <tr>
+                    <th style="width:130px">Date</th>
+                    <th>Référence</th>
+                    <th style="width:150px">Montant (DH)</th>
+                  </tr>
+                </thead>
+                <tbody id="sitPayTbody">
+                  <tr><td colspan="3" class="no-data">Aucune donnée</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="honos-totaux">
+            <div><strong>Total services :</strong> <span id="sitTotalServices">0</span> DH</div>
+            <div><strong>Total paiements :</strong> <span id="sitTotalPaiements">0</span> DH</div>
+            <div><strong>Report (N-1) :</strong> <span id="sitReport">0</span> DH</div>
+            <div><strong>Solde exercice :</strong> <span id="sitSolde">0</span> DH</div>
           </div>
         </div>
       </div>
-
-      <select id="honorairesExerciceSelect" class="honos-select">
-        <option value="2024">2024</option>
-        <option value="2025" selected>2025</option>
-        <option value="2026">2026</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- Onglets -->
-  <div class="tabs honoraires-tabs">
-    <div class="tab active" data-tab="honos-facturations">Facturations</div>
-    <div class="tab" data-tab="honos-paiements">Paiements</div>
-    <div class="tab" data-tab="honos-situation">Situation</div>
-  </div>
-
-  <!-- FACTURATIONS -->
-  <div id="honos-facturations" class="tab-content active">
-    <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
-      <button id="btnFacturerService" class="btn-primary">
-        <i class="fas fa-plus"></i> Facturer un service
-      </button>
-    </div>
-    <div class="card">
-      <table class="clients-table table-min">
-        <thead>
-          <tr>
-            <th style="width:130px">Date</th>
-            <th>Service (saisie libre)</th>
-            <th style="width:110px">Exercice</th>
-            <th style="width:150px">Montant (DH)</th>
-            <th style="width:130px">Action</th>
-          </tr>
-        </thead>
-        <tbody id="factuTbody">
-          <tr><td colspan="5" class="no-data">Aucune facturation</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- PAIEMENTS -->
-  <div id="honos-paiements" class="tab-content">
-    <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
-      <button id="btnAjouterPaiement" class="btn-success">
-        <i class="fas fa-money-bill"></i> Ajouter un paiement
-      </button>
-    </div>
-    <div class="card">
-      <table class="clients-table table-min">
-        <thead>
-          <tr>
-            <th style="width:130px">Date</th>
-            <th style="width:160px">Mode</th>
-            <th>Référence</th>
-            <th style="width:150px">Montant (DH)</th>
-            <th style="width:130px">Action</th>
-          </tr>
-        </thead>
-        <tbody id="payTbody">
-          <tr><td colspan="5" class="no-data">Aucun paiement</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- SITUATION -->
-<div id="honos-situation" class="tab-content">
-  <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
-    <button id="btnImprimerSituation" class="btn-primary">
-      <i class="fas fa-print"></i> Imprimer la situation
-    </button>
-  </div>
-  
-  <!-- Résumé des totaux -->
-  <div class="honos-totaux" style="margin-bottom: 2rem;">
-    <div><strong>Total services :</strong> <span id="sitTotalServices">0</span> DH</div>
-    <div><strong>Total paiements :</strong> <span id="sitTotalPaiements">0</span> DH</div>
-    <div><strong>Report (N-1) :</strong> <span id="sitReport">0</span> DH</div>
-    <div><strong style="font-size: 1.1rem; color: var(--primary-color);">Solde exercice :</strong> <span id="sitSolde" style="font-size: 1.1rem; font-weight: bold;">0</span> DH</div>
-  </div>
-
-  <div class="honos-split">
-    <!-- Services facturés -->
-    <div class="card">
-      <h4 class="honos-card-title">
-        <i class="fas fa-file-invoice" style="margin-right: 0.5rem;"></i>
-        Services facturés
-      </h4>
-      <table class="clients-table table-min">
-        <thead>
-          <tr>
-            <th style="width:130px">Date</th>
-            <th>Libellé</th>
-            <th style="width:150px">Montant (DH)</th>
-          </tr>
-        </thead>
-        <tbody id="sitFactuTbody">
-          <tr><td colspan="3" class="no-data">Aucune facturation</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Paiements -->
-    <div class="card">
-      <h4 class="honos-card-title">
-        <i class="fas fa-money-bill-wave" style="margin-right: 0.5rem;"></i>
-        Paiements
-      </h4>
-      <table class="clients-table table-min">
-        <thead>
-          <tr>
-            <th style="width:130px">Date</th>
-            <th>Référence</th>
-            <th style="width:150px">Montant (DH)</th>
-          </tr>
-        </thead>
-        <tbody id="sitPayTbody">
-          <tr><td colspan="3" class="no-data">Aucun paiement</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Détails par exercice -->
-  <div class="card" style="margin-top: 2rem;">
-    <h4 class="honos-card-title">
-      <i class="fas fa-history" style="margin-right: 0.5rem;"></i>
-      Historique par exercice
-    </h4>
-    <table class="clients-table table-min">
-      <thead>
-        <tr>
-          <th>Exercice</th>
-          <th>Total Facturé (DH)</th>
-          <th>Total Payé (DH)</th>
-          <th>Solde (DH)</th>
-          <th>Report (DH)</th>
-        </tr>
-      </thead>
-      <tbody id="sitHistoriqueTbody">
-        <tr><td colspan="5" class="no-data">Aucune donnée historique</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-</div>
 
       <!-- =========================
            SITUATION GLOBALE
@@ -1410,13 +1391,8 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="newUserPassword">Mot de passe temporaire *</label>
-            <div style="position: relative;">
-              <input type="text" id="newUserPassword" value="Temp123!" required readonly style="background: #f8fafc;">
-              <button type="button" class="btn-secondary" onclick="generatePassword()" style="position: absolute; right: 0; top: 0; height: 100%; border-radius: 0 8px 8px 0;">
-                <i class="fas fa-redo"></i>
-              </button>
-            </div>
+            <label for="newUserPassword">Mot de passe *</label>
+            <input type="text" id="newUserPassword" required>
           </div>
         </div>
 
