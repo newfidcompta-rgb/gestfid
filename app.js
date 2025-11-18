@@ -1127,20 +1127,32 @@ function setupGlobalMenus(){
 
     // ✅ CORRECTION : Gestion dropdown CLIENTS
     if(t.closest('#clients')){
-      const btn = t.closest('.action-btn'); // ← CHANGEMENT ICI (.action-toggle → .action-btn)
+      const btn = t.closest('.action-btn');
       if(btn){
         const row = btn.closest('tr');
         const clientId = row?.dataset.clientId;
         
         if (clientId) {
-          // Fermer tous les autres menus
-          document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
-          
-          // Ouvrir le menu correspondant
+          // OBTENIR LE MENU CORRESPONDANT
           const dropdown = btn.closest('.dropdown');
           const menu = dropdown.querySelector('.dropdown-content');
+          
           if (menu) {
-            menu.classList.add('show');
+            // ✅ CORRECTION : Vérifier si le menu est déjà ouvert
+            const isAlreadyOpen = menu.classList.contains('show');
+            
+            // Fermer tous les autres menus d'abord
+            document.querySelectorAll('.dropdown-content.show').forEach(m => {
+              m.classList.remove('show');
+              m.classList.remove('dropdown-up'); // Reset position
+            });
+            
+            // ✅ CORRECTION : Basculer l'état (ouvrir si fermé, fermer si ouvert)
+            if (!isAlreadyOpen) {
+              menu.classList.add('show');
+              // ✅ NOUVEAU : Ajuster la position selon l'espace disponible
+              adjustDropdownPosition(menu, btn);
+            }
           }
         }
         return;
@@ -1155,7 +1167,10 @@ function setupGlobalMenus(){
         
         if (clientId) {
           // Fermer le menu
-          document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
+          document.querySelectorAll('.dropdown-content.show').forEach(m => {
+            m.classList.remove('show');
+            m.classList.remove('dropdown-up');
+          });
           // Exécuter l'action
           handleClientAction(action, item);
         }
@@ -1163,57 +1178,136 @@ function setupGlobalMenus(){
       }
     }
 
-    // ✅ Gestion dropdown ÉCHÉANCES (existant)
+    // ✅ CORRECTION : Gestion dropdown ÉCHÉANCES
     if(t.closest('#echeances')){
       const btn = t.closest('.action-toggle');
       if(btn){
         const id = btn.getAttribute('data-id');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        const menu = document.getElementById(`menu-${id}`); 
-        if(menu) menu.classList.add('show');
+        
+        // OBTENIR LE MENU CORRESPONDANT
+        const menu = document.getElementById(`menu-${id}`);
+        
+        if (menu) {
+          // ✅ CORRECTION : Vérifier si le menu est déjà ouvert
+          const isAlreadyOpen = menu.classList.contains('show');
+          
+          // Fermer tous les autres menus d'abord
+          document.querySelectorAll('.action-menu.show').forEach(m => {
+            m.classList.remove('show');
+            m.classList.remove('menu-up');
+          });
+          
+          // ✅ CORRECTION : Basculer l'état
+          if (!isAlreadyOpen) {
+            menu.classList.add('show');
+            // ✅ NOUVEAU : Ajuster la position selon l'espace disponible
+            adjustActionMenuPosition(menu, btn);
+          }
+        }
         return;
       }
       
       const item = t.closest('.menu-item');
       if(item){
         mettreAJourStatutEcheance(item.getAttribute('data-id'), item.getAttribute('data-action'));
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+        document.querySelectorAll('.action-menu.show').forEach(m => {
+          m.classList.remove('show');
+          m.classList.remove('menu-up');
+        });
         return;
       }
     }
 
-    // ✅ Gestion dropdown HONORAIRES (nouveau - si vous l'avez ajouté)
+    // ✅ CORRECTION : Gestion dropdown HONORAIRES
     if(t.closest('#honoraires')){
-  const btn = t.closest('.action-toggle');
-    if(btn){
-    const id = btn.getAttribute('data-id');
-    const type = btn.getAttribute('data-type'); // 'factu' ou 'pay'
-    document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-    
-    // ✅ CORRECTION : Utiliser le bon ID selon le type
-    const menu = document.getElementById(`honos-${type}-menu-${id}`);
-    if(menu) menu.classList.add('show');
-    return;
+      const btn = t.closest('.action-toggle');
+      if(btn){
+        const id = btn.getAttribute('data-id');
+        const type = btn.getAttribute('data-type'); // 'factu' ou 'pay'
+        
+        // ✅ CORRECTION : Utiliser le bon ID selon le type
+        const menu = document.getElementById(`honos-${type}-menu-${id}`);
+        
+        if (menu) {
+          // ✅ CORRECTION : Vérifier si le menu est déjà ouvert
+          const isAlreadyOpen = menu.classList.contains('show');
+          
+          // Fermer tous les autres menus d'abord
+          document.querySelectorAll('.action-menu.show').forEach(m => {
+            m.classList.remove('show');
+            m.classList.remove('menu-up');
+          });
+          
+          // ✅ CORRECTION : Basculer l'état
+          if (!isAlreadyOpen) {
+            menu.classList.add('show');
+            // ✅ NOUVEAU : Ajuster la position selon l'espace disponible
+            adjustActionMenuPosition(menu, btn);
+          }
+        }
+        return;
+      }
+      
+      const item = t.closest('.menu-item');
+      if(item){
+        const id = item.getAttribute('data-id');
+        const action = item.getAttribute('data-action');
+        const type = item.getAttribute('data-type');
+        document.querySelectorAll('.action-menu.show').forEach(m => {
+          m.classList.remove('show');
+          m.classList.remove('menu-up');
+        });
+        
+        handleHonosAction(type, action, id);
+        return;
+      }
     }
-  
-  const item = t.closest('.menu-item');
-    if(item){
-    const id = item.getAttribute('data-id');
-    const action = item.getAttribute('data-action');
-    const type = item.getAttribute('data-type');
-    document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-    
-    handleHonosAction(type, action, id);
-    return;
-    }
-   }
 
     // ✅ FERMER TOUS LES MENUS si click ailleurs
     if(!t.closest('.dropdown') && !t.closest('.action-dropdown')) {
-      document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
-      document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+      document.querySelectorAll('.dropdown-content.show, .action-menu.show').forEach(m => {
+        m.classList.remove('show');
+        m.classList.remove('dropdown-up');
+        m.classList.remove('menu-up');
+      });
     }
   });
+}
+
+// ✅ NOUVELLE FONCTION : Ajuster la position des dropdowns clients
+function adjustDropdownPosition(menu, button) {
+  const menuRect = menu.getBoundingClientRect();
+  const buttonRect = button.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  
+  // Calculer l'espace disponible en bas
+  const spaceBelow = viewportHeight - buttonRect.bottom;
+  const menuHeight = menuRect.height;
+  
+  // Si l'espace en bas est insuffisant, afficher vers le haut
+  if (spaceBelow < menuHeight && buttonRect.top > menuHeight) {
+    menu.classList.add('dropdown-up');
+  } else {
+    menu.classList.remove('dropdown-up');
+  }
+}
+
+// ✅ NOUVELLE FONCTION : Ajuster la position des menus d'action
+function adjustActionMenuPosition(menu, button) {
+  const menuRect = menu.getBoundingClientRect();
+  const buttonRect = button.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  
+  // Calculer l'espace disponible en bas
+  const spaceBelow = viewportHeight - buttonRect.bottom;
+  const menuHeight = menuRect.height;
+  
+  // Si l'espace en bas est insuffisant, afficher vers le haut
+  if (spaceBelow < menuHeight && buttonRect.top > menuHeight) {
+    menu.classList.add('menu-up');
+  } else {
+    menu.classList.remove('menu-up');
+  }
 }
 
 /* =========================

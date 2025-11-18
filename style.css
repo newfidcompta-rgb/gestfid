@@ -3145,3 +3145,59 @@ Style pour les filtres Type declarations
 #honoraires .action-toggle:hover {
   background: var(--primary-dark);
 }
+/* Styles pour les dropdowns qui s'affichent vers le haut */
+.dropdown-content.dropdown-up {
+  bottom: 100%;
+  top: auto !important;
+}
+
+.action-menu.menu-up {
+  bottom: 100%;
+  top: auto !important;
+  transform: translateY(-5px);
+}
+
+/* Ajustements pour les menus d'action des tableaux */
+.action-dropdown {
+  position: relative;
+}
+
+.action-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  margin-top: 5px;
+  display: none;
+}
+
+.action-menu.show {
+  display: block;
+}
+
+/* Pour les dropdowns clients */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-content {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  display: none;
+}
+
+.dropdown-content.show {
+  display: block;
+}
