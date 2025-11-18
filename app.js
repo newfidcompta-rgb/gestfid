@@ -1125,25 +1125,45 @@ function setupGlobalMenus(){
   document.addEventListener('click', (e) => {
     const t = e.target;
 
+    // ✅ CORRECTION : Gestion dropdown CLIENTS
     if(t.closest('#clients')){
-      const btn = t.closest('.action-toggle');
+      const btn = t.closest('.action-btn'); // ← CHANGEMENT ICI (.action-toggle → .action-btn)
       if(btn){
-        const id = btn.getAttribute('data-id');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        const menu = document.getElementById(`client-menu-${id}`);
-        if(menu) menu.classList.add('show');
+        const row = btn.closest('tr');
+        const clientId = row?.dataset.clientId;
+        
+        if (clientId) {
+          // Fermer tous les autres menus
+          document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
+          
+          // Ouvrir le menu correspondant
+          const dropdown = btn.closest('.dropdown');
+          const menu = dropdown.querySelector('.dropdown-content');
+          if (menu) {
+            menu.classList.add('show');
+          }
+        }
         return;
       }
       
-      const item = t.closest('.menu-item');
+      // Gestion des clics sur les options du menu clients
+      const item = t.closest('.action-view, .action-edit, .action-affect, .action-archive');
       if(item){
-        const id = item.getAttribute('data-id');
-        const action = item.getAttribute('data-action');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+        const row = item.closest('tr');
+        const clientId = row?.dataset.clientId;
+        const action = item.classList[0].replace('action-', ''); // 'view', 'edit', etc.
+        
+        if (clientId) {
+          // Fermer le menu
+          document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
+          // Exécuter l'action
+          handleClientAction(action, item);
+        }
         return;
       }
     }
 
+    // ✅ Gestion dropdown ÉCHÉANCES (existant)
     if(t.closest('#echeances')){
       const btn = t.closest('.action-toggle');
       if(btn){
@@ -1160,36 +1180,37 @@ function setupGlobalMenus(){
         document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
         return;
       }
-      
-      const reset = t.closest('.reset-btn');
-      if(reset){ 
-        reinitialiserStatut(reset.getAttribute('data-id')); 
-        return; 
-      }
     }
+
+    // ✅ Gestion dropdown HONORAIRES (nouveau - si vous l'avez ajouté)
     if(t.closest('#honoraires')){
-      const btn = t.closest('.action-toggle');
-      if(btn){
-        const id = btn.getAttribute('data-id');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        const menu = document.getElementById(`honos-menu-${id}`);
-        if(menu) menu.classList.add('show');
-        return;
-      }
-      
-      const item = t.closest('.menu-item');
-      if(item){
-        const id = item.getAttribute('data-id');
-        const action = item.getAttribute('data-action');
-        const type = item.getAttribute('data-type');
-        document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
-        
-        // Exécuter l'action correspondante
-        handleHonosAction(type, action, id);
-        return;
-      }
+  const btn = t.closest('.action-toggle');
+    if(btn){
+    const id = btn.getAttribute('data-id');
+    const type = btn.getAttribute('data-type'); // 'factu' ou 'pay'
+    document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+    
+    // ✅ CORRECTION : Utiliser le bon ID selon le type
+    const menu = document.getElementById(`honos-${type}-menu-${id}`);
+    if(menu) menu.classList.add('show');
+    return;
     }
-    if(!t.closest('.action-dropdown')) {
+  
+  const item = t.closest('.menu-item');
+    if(item){
+    const id = item.getAttribute('data-id');
+    const action = item.getAttribute('data-action');
+    const type = item.getAttribute('data-type');
+    document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
+    
+    handleHonosAction(type, action, id);
+    return;
+    }
+   }
+
+    // ✅ FERMER TOUS LES MENUS si click ailleurs
+    if(!t.closest('.dropdown') && !t.closest('.action-dropdown')) {
+      document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
       document.querySelectorAll('.action-menu.show').forEach(m => m.classList.remove('show'));
     }
   });
@@ -3609,15 +3630,44 @@ async function loadHonorairesFromSupabase() {
    ========================= */
 
 function refreshHonorairesUI(){
-  // Vérifier si les données ont vraiment changé
-  const currentState = getHonosCurrentState();
-  if (!hasHonosDataChanged(currentState)) {
-    return; // Rien à mettre à jour
-  }
+  console.log('🔄 DEBUT refreshHonorairesUI');
   
-  // Mettre à jour seulement si nécessaire
-  updateHonorairesDisplay();
-  lastHonosState = currentState;
+  const rows = honosFactu.filter(x => x.client_id === honosClientId && x.exercice == honosExercice);
+  const pay = honosPay.filter(x => x.client_id === honosClientId);
+  
+  console.log('📊 Données pour rafraîchissement:', {
+    clientId: honosClientId,
+    exercice: honosExercice,
+    facturations: rows.length,
+    paiements: pay.length
+  });
+
+  // FACTURATIONS
+  const factuTbody = document.getElementById('factuTbody');
+  factuTbody.innerHTML = '';
+  if (rows.length === 0) {
+    factuTbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucune facturation</td></tr>';
+  } else {
+    rows.forEach(factu => {
+      factuTbody.appendChild(createFactuRow(factu));
+    });
+  }
+
+  // PAIEMENTS
+  const payTbody = document.getElementById('payTbody');
+  payTbody.innerHTML = '';
+  if (pay.length === 0) {
+    payTbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun paiement</td></tr>';
+  } else {
+    pay.forEach(payment => {
+      payTbody.appendChild(createPayRow(payment));
+    });
+  }
+
+  // SITUATION
+  updateSituationTotals(rows, pay);
+  
+  console.log('✅ FIN refreshHonorairesUI');
 }
 
 function getHonosCurrentState() {
@@ -3657,7 +3707,25 @@ function updateTableContent(tbodyId, data, createRowFn, emptyMessage) {
   const tbody = document.getElementById(tbodyId);
   const existingRows = Array.from(tbody.querySelectorAll('tr[data-id]'));
   
-  // Mettre à jour les lignes existantes ou en créer de nouvelles
+  // ✅ CORRECTION : Forcer la recréation pour les paiements
+  if (tbodyId === 'payTbody' || tbodyId === 'factuTbody') {
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="no-data">${emptyMessage}</td></tr>`;
+      return;
+    }
+    
+    data.forEach(item => {
+      const newRow = createRowFn(item);
+      tbody.appendChild(newRow);
+    });
+    
+    console.log(`✅ ${tbodyId} FORCÉ: ${data.length} lignes recréées`);
+    return;
+  }
+  
+  // ✅ Pour les autres tableaux, garder l'optimisation existante
   data.forEach((item, index) => {
     const existingRow = existingRows.find(row => row.dataset.id === item.id);
     if (existingRow) {
@@ -3672,14 +3740,12 @@ function updateTableContent(tbodyId, data, createRowFn, emptyMessage) {
     }
   });
   
-  // Supprimer les lignes qui n'existent plus
   existingRows.forEach(row => {
     if (!data.find(item => item.id === row.dataset.id)) {
       row.remove();
     }
   });
   
-  // Gérer le cas "aucune donnée"
   const noDataRow = tbody.querySelector('.no-data');
   if (data.length === 0 && !noDataRow) {
     tbody.innerHTML = `<tr><td colspan="5" class="no-data">${emptyMessage}</td></tr>`;
@@ -3763,21 +3829,26 @@ async function addPaiement(paiementData) {
 
 async function updateFacturation(id, updates) {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('honoraires_factures')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .select(); // ← AJOUT: Récupérer les données mises à jour
     
     if (error) throw error;
     
-    const index = honosFactu.findIndex(item => item.id === id);
-    if (index !== -1) {
-      honosFactu[index] = { ...honosFactu[index], ...updates };
+    if (data && data[0]) {
+      // Mettre à jour le tableau local avec les données fraîches
+      const index = honosFactu.findIndex(item => item.id === id);
+      if (index !== -1) {
+        honosFactu[index] = { ...honosFactu[index], ...data[0] };
+      }
+      console.log('✅ Facturation mise à jour:', data[0]);
     }
     
     return true;
   } catch (error) {
-    console.error('Erreur modification facturation:', error);
+    console.error('❌ Erreur modification facturation:', error);
     alert('Erreur lors de la modification: ' + error.message);
     return false;
   }
@@ -3785,21 +3856,26 @@ async function updateFacturation(id, updates) {
 
 async function updatePaiement(id, updates) {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('honoraires_paiements')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .select(); // ← AJOUT: Récupérer les données mises à jour
     
     if (error) throw error;
     
-    const index = honosPay.findIndex(item => item.id === id);
-    if (index !== -1) {
-      honosPay[index] = { ...honosPay[index], ...updates };
+    if (data && data[0]) {
+      // Mettre à jour le tableau local avec les données fraîches
+      const index = honosPay.findIndex(item => item.id === id);
+      if (index !== -1) {
+        honosPay[index] = { ...honosPay[index], ...data[0] };
+      }
+      console.log('✅ Paiement mis à jour:', data[0]);
     }
     
     return true;
   } catch (error) {
-    console.error('Erreur modification paiement:', error);
+    console.error('❌ Erreur modification paiement:', error);
     alert('Erreur lors de la modification: ' + error.message);
     return false;
   }
@@ -3850,8 +3926,10 @@ function handleHonosAction(type, action, id) {
   switch(action) {
     case 'edit':
       if (type === 'factu') {
+        console.log('✏️ Modification facturation:', id);
         editHonosFactu(id);
       } else if (type === 'pay') {
+        console.log('✏️ Modification paiement:', id);
         editHonosPay(id);
       }
       break;
@@ -3892,7 +3970,9 @@ window.editHonosFactu = async (id) => {
   
   const success = await updateFacturation(id, updates);
   if (success) {
-    refreshHonorairesUI();
+    // FORCER le rafraîchissement complet
+    await loadHonorairesFromSupabase(); // Recharger depuis Supabase
+    refreshHonorairesUI(); // Rafraîchir l'interface
   }
 };
 
@@ -3916,7 +3996,9 @@ window.editHonosPay = async (id) => {
   
   const success = await updatePaiement(id, updates);
   if (success) {
-    refreshHonorairesUI();
+    // FORCER le rafraîchissement complet
+    await loadHonorairesFromSupabase(); // Recharger depuis Supabase
+    refreshHonorairesUI(); // Rafraîchir l'interface
   }
 };
 
@@ -3970,20 +4052,20 @@ function createFactuRow(r) {
     <td>${r.exercice}</td>
     <td style="text-align:right">${r.montant.toFixed(2)}</td>
     <td class="actions">
-  <div class="action-dropdown">
-    <button class="btn-primary action-toggle" data-id="${r.id}" data-type="factu">
-      <i class="fas fa-cog"></i> Actions ▾
-    </button>
-    <div class="action-menu" id="honos-menu-${r.id}">
-      <button class="menu-item" data-action="edit" data-id="${r.id}" data-type="factu">
-        <i class="fas fa-edit"></i> Modifier
-      </button>
-      <button class="menu-item" data-action="delete" data-id="${r.id}" data-type="factu">
-        <i class="fas fa-trash"></i> Supprimer
-      </button>
-    </div>
-  </div>
-</td>
+      <div class="action-dropdown">
+        <button class="btn-primary action-toggle" data-id="${r.id}" data-type="factu">
+          <i class="fas fa-cog"></i> Actions ▾
+        </button>
+        <div class="action-menu" id="honos-factu-menu-${r.id}">  <!-- ✅ CORRECTION : honos-factu-menu- -->
+          <button class="menu-item" data-action="edit" data-id="${r.id}" data-type="factu">
+            <i class="fas fa-edit"></i> Modifier
+          </button>
+          <button class="menu-item" data-action="delete" data-id="${r.id}" data-type="factu">
+            <i class="fas fa-trash"></i> Supprimer
+          </button>
+        </div>
+      </div>
+    </td>
   `;
   return row;
 }
@@ -3997,24 +4079,23 @@ function createPayRow(r) {
     <td>${r.ref}</td>
     <td style="text-align:right">${r.montant.toFixed(2)}</td>
     <td class="actions">
-    <div class="action-dropdown">
-    <button class="btn-primary action-toggle" data-id="${r.id}" data-type="pay">
-      <i class="fas fa-cog"></i> Actions ▾
-    </button>
-    <div class="action-menu" id="honos-menu-${r.id}">
-      <button class="menu-item" data-action="edit" data-id="${r.id}" data-type="pay">
-        <i class="fas fa-edit"></i> Modifier
-      </button>
-      <button class="menu-item" data-action="delete" data-id="${r.id}" data-type="pay">
-        <i class="fas fa-trash"></i> Supprimer
-      </button>
-    </div>
-    </div>
+      <div class="action-dropdown">
+        <button class="btn-primary action-toggle" data-id="${r.id}" data-type="pay">
+          <i class="fas fa-cog"></i> Actions ▾
+        </button>
+        <div class="action-menu" id="honos-pay-menu-${r.id}">  <!-- ✅ CORRECTION : honos-pay-menu- -->
+          <button class="menu-item" data-action="edit" data-id="${r.id}" data-type="pay">
+            <i class="fas fa-edit"></i> Modifier
+          </button>
+          <button class="menu-item" data-action="delete" data-id="${r.id}" data-type="pay">
+            <i class="fas fa-trash"></i> Supprimer
+          </button>
+        </div>
+      </div>
     </td>
   `;
   return row;
 }
-
 function createSituationFactuRow(r) {
   const row = document.createElement('tr');
   row.dataset.id = r.id;
@@ -4802,22 +4883,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 document.getElementById('affecterDeclarationsBtn').addEventListener('click', handleAffectation);
-
-function createPayRow(r) {
-  const row = document.createElement('tr');
-  row.dataset.id = r.id;
-  row.innerHTML = `
-    <td>${r.date}</td>
-    <td>${r.mode}</td>
-    <td>${r.ref}</td>
-    <td style="text-align:right">${r.montant.toFixed(2)}</td>
-    <td>
-      <button class="btn-warning" onclick="editHonosPay('${r.id}')"><i class="fas fa-edit"></i></button>
-      <button class="btn-secondary" onclick="delHonosPay('${r.id}')"><i class="fas fa-trash"></i></button>
-    </td>
-  `;
-  return row;
-}
 
 function createSituationPayRow(r) {
   const row = document.createElement('tr');
