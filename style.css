@@ -700,7 +700,7 @@ body {
 }
 
 /* ============================================
-   COMPOSANTS DE MENUS DÉROULANTS - VERSION CORRIGÉE
+   COMPOSANTS DE MENUS DÉROULANTS
    ============================================ */
 
 /* Menu d'actions dans les tableaux */
@@ -739,7 +739,7 @@ body {
   box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
   border: 1px solid var(--border-color) !important;
   border-radius: 8px !important;
-  z-index: 1000 !important; /* ← AJOUT CRITIQUE */
+  z-index: 1000 !important;
   right: 0 !important;
   top: 100%;
   margin-top: 5px;
@@ -748,13 +748,6 @@ body {
 /* Menu ouvert */
 .dropdown-content.show {
   display: block !important;
-}
-
-.dropdown-content.open-up {
-  bottom: 100% !important;
-  top: auto !important;
-  margin-top: 0;
-  margin-bottom: 5px;
 }
 
 .dropdown-content a {
@@ -783,63 +776,53 @@ body {
 }
 
 .action-menu {
-    position: absolute !important;
-    top: 100%;
-    right: 0;
-    min-width: 170px;
-    background: #fff;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    box-shadow: var(--shadow-lg);
-    padding: .25rem;
-    display: none;
-    z-index: 1000 !important;
-    margin-top: 2px;
-}
-
-/* Version menu vers le haut */
-.action-menu.open-up {
-    bottom: 100% !important;
-    top: auto !important;
-    margin-top: 0;
-    margin-bottom: 2px;
+  position: absolute !important;
+  top: 100%;
+  right: 0;
+  min-width: 170px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: .25rem;
+  display: none;
+  z-index: 1000 !important;
+  margin-top: 2px;
 }
 
 .action-menu.show {
-    display: block !important;
+  display: block !important;
 }
 
 .action-menu .menu-item {
-    width: 100%;
-    border: none;
-    background: transparent;
-    text-align: left;
-    padding: .5rem .75rem;
-    cursor: pointer;
-    border-radius: 6px;
-    font-size: .9rem;
-    display: flex;
-    align-items: center;
-    gap: .5rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: .5rem .75rem;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: .9rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  transition: background-color 0.2s ease;
 }
 
 .action-menu .menu-item:hover {
-    background: var(--bg-secondary);
+  background: var(--bg-secondary);
 }
 
-/* ============================================
-   CORRECTIONS SUPPLÉMENTAIRES POUR GARANTIR L'AFFICHAGE
-   ============================================ */
-
-/* S'assurer que le conteneur parent ne cache pas le menu */
-.clients-table-container {
-  position: relative;
-  overflow: visible !important;
+/* Styles pour les dropdowns qui s'affichent vers le haut */
+.dropdown-content.dropdown-up {
+  bottom: 100%;
+  top: auto !important;
 }
 
-/* Forcer l'affichage au-dessus de tous les autres éléments */
-.dropdown-content {
-  z-index: 9999 !important; /* ← VALEUR ÉLEVÉE */
+.action-menu.menu-up {
+  bottom: 100%;
+  top: auto !important;
+  transform: translateY(-5px);
 }
 
 /* Correction pour les cellules du tableau */
@@ -850,25 +833,6 @@ body {
 /* Style quand le menu est ouvert */
 .dropdown.active .action-btn {
   background: var(--primary-dark);
-}
-/* Correction spécifique pour les échéances */
-#echeances .declarations-table-container {
-    position: relative;
-    overflow: visible !important;
-    z-index: 1;
-}
-
-#echeances .clients-table {
-    position: relative;
-}
-
-#echeances .clients-table td.actions {
-    position: relative;
-}
-
-/* Style quand le menu est ouvert */
-.dropdown.active .action-btn {
-    background: var(--primary-dark);
 }
 
 /* ============================================
@@ -2265,868 +2229,6 @@ body {
   }
 }
 
-/* Ajouter pour les écrans mobiles */
-@media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-  }
-  
-  .sidebar.mobile-open {
-    transform: translateX(0);
-  }
-  
-  .mobile-menu-toggle {
-    display: block;
-    position: fixed;
-    top: 1rem;
-    left: 1rem;
-    z-index: 1001;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 0.5rem;
-    border-radius: 6px;
-  }
-}
-
-/* ============================================
-   RESPONSIVE MOBILE - TOUTES PAGES
-   ============================================ */
-
-@media (max-width: 768px) {
-  
-  /* =========================
-     LAYOUT PRINCIPAL MOBILE
-     ========================= */
-  
-  .container { 
-    flex-direction: column;
-    min-height: 100vh;
-  }
-  
-  .sidebar {
-    position: fixed;
-    width: 100%;
-    height: 70px;
-    bottom: 0;
-    top: auto;
-    left: 0;
-    z-index: 1000;
-    transform: translateY(0);
-    transition: transform 0.3s ease;
-  }
-  
-  .sidebar.mobile-hidden {
-    transform: translateY(100%);
-  }
-  
-  .logo-section {
-    display: none;
-  }
-  
-  .nav-links {
-    display: flex;
-    flex-direction: row;
-    padding: 0;
-    overflow-x: auto;
-    max-height: 70px;
-    border-top: 1px solid #374151;
-  }
-  
-  .nav-links li {
-    margin-bottom: 0;
-    flex: 1;
-    min-width: 80px;
-  }
-  
-  .nav-links a {
-    flex-direction: column;
-    padding: 0.5rem;
-    border-left: none;
-    border-top: 3px solid transparent;
-    text-align: center;
-    font-size: 0.7rem;
-    height: 70px;
-    justify-content: center;
-  }
-  
-  .nav-links a.active {
-    border-left-color: transparent;
-    border-top-color: var(--primary-color);
-    background: #374151;
-  }
-  
-  .nav-links a:hover {
-    border-left-color: transparent;
-    border-top-color: var(--primary-color);
-  }
-  
-  .nav-links i {
-    margin-right: 0;
-    margin-bottom: 0.25rem;
-    font-size: 1rem;
-    width: auto;
-  }
-  
-  .user-section {
-    display: none;
-  }
-  
-  .main-content {
-    margin-left: 0;
-    margin-bottom: 70px;
-    padding: 1rem;
-    min-height: calc(100vh - 70px);
-  }
-  
-  /* =========================
-     HEADER MOBILE
-     ========================= */
-  
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    height: auto;
-    padding: 1rem 0;
-    margin-bottom: 1rem;
-  }
-  
-  .header h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .header-actions {
-    width: 100%;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  
-  .date-display {
-    font-size: 0.8rem;
-  }
-  
-  /* =========================
-     ONGLETS MOBILE
-     ========================= */
-  
-  .tabs {
-    flex-direction: row;
-    overflow-x: auto;
-    white-space: nowrap;
-    margin-bottom: 1rem;
-    padding-bottom: 0.25rem;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  
-  .tabs::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .tab {
-    padding: 0.75rem 1rem;
-    font-size: 0.8rem;
-    min-width: max-content;
-    border-bottom: 2px solid transparent;
-  }
-  
-  .tab.active {
-    border-bottom-color: var(--primary-color);
-  }
-  
-  /* Onglets spécifiques pages */
-  #clients .tabs,
-  #declarations .tabs,
-  #codes .tabs,
-  #honoraires .tabs {
-    position: relative;
-    top: 0;
-    height: auto;
-  }
-  
-  /* =========================
-     TABLEAUX MOBILE
-     ========================= */
-  
-  .clients-table-container,
-  .declarations-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 8px;
-  }
-  
-  .clients-table,
-  .declarations-table {
-    min-width: 600px;
-  }
-  
-  .clients-table th,
-  .clients-table td,
-  .declarations-table th,
-  .declarations-table td {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
-  }
-  
-  /* =========================
-     FORMULAIRES MOBILE
-     ========================= */
-  
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-  
-  .form-group {
-    margin-bottom: 1rem;
-  }
-  
-  .form-group input,
-  .form-group select,
-  .form-group textarea {
-    padding: 0.875rem 1rem;
-    font-size: 16px; /* Évite le zoom sur iOS */
-  }
-  
-  .form-actions {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .form-actions button {
-    width: 100%;
-    justify-content: center;
-  }
-  
-  /* =========================
-     CARTES & STATISTIQUES MOBILE
-     ========================= */
-  
-  .card {
-    padding: 1rem;
-    border-radius: 8px;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .stat-card {
-    padding: 1rem;
-    flex-direction: column;
-    text-align: center;
-    gap: 0.75rem;
-  }
-  
-  .stat-icon {
-    width: 50px;
-    height: 50px;
-    font-size: 1.25rem;
-  }
-  
-  .stat-info h3 {
-    font-size: 1.5rem;
-  }
-  
-  /* =========================
-     RECHERCHE & FILTRES MOBILE
-     ========================= */
-  
-  .search-box {
-    width: 100%;
-  }
-  
-  .search-box input {
-    width: 100%;
-  }
-  
-  .custom-select-wrapper {
-    width: 100%;
-  }
-  
-  /* =========================
-     BOUTONS MOBILE
-     ========================= */
-  
-  .btn-primary,
-  .btn-secondary,
-  .btn-success,
-  .btn-warning {
-    padding: 0.875rem 1rem;
-    font-size: 0.9rem;
-    width: 100%;
-    justify-content: center;
-  }
-  
-  /* =========================
-     PAGE DASHBOARD MOBILE
-     ========================= */
-  
-  #dashboard .progress-section {
-    padding: 1rem;
-  }
-  
-  .progress-container {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .progress-text {
-    text-align: center;
-  }
-  
-  /* =========================
-     PAGE CLIENTS MOBILE
-     ========================= */
-  
-  #clients .header-actions {
-    flex-direction: column;
-  }
-  
-  /* Formulaire consultation client */
-  #viewClientForm .form-row {
-    grid-template-columns: 1fr;
-  }
-  
-  #viewFormContainer {
-    padding: 0.5rem;
-  }
-  
-  /* Sélecteurs clients */
-  #viewClientSelect .select-selected,
-  #editClientSelect .select-selected {
-    font-size: 0.9rem;
-    padding: 0.875rem 1rem;
-  }
-  
-  /* =========================
-     PAGE DÉCLARATIONS MOBILE
-     ========================= */
-  
-  /* Filtres échéances */
-  #echeances .header-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-  
-  #echeances #anneeSelection,
-  #echeances #filtreEtat,
-  #echeances .custom-select-wrapper {
-    width: 100%;
-    min-width: 100% !important;
-  }
-  
-  /* Checklist affectation */
-  .checklist-container {
-    padding: 1rem;
-  }
-  
-  .category-header {
-    padding: 1rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  
-  .category-title-section {
-    width: 100%;
-  }
-  
-  .category-stats {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .declaration-item label {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  
-  .declaration-info {
-    width: 100%;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
-  }
-  
-  .declaration-dates {
-    text-align: left;
-    min-width: auto;
-  }
-  
-  /* =========================
-     PAGE CODES MOBILE
-     ========================= */
-  
-  .service-section {
-    padding: 1rem;
-    margin-bottom: 1rem;
-  }
-  
-  .code-service-card {
-    padding: 1rem;
-    margin-bottom: 1rem;
-  }
-  
-  .code-service-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-    text-align: center;
-  }
-  
-  .code-service-icon {
-    margin-right: 0;
-    align-self: center;
-  }
-  
-  .code-field-group {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-  }
-  
-  .code-field-value {
-    margin-left: 0;
-    width: 100%;
-    font-size: 0.8rem;
-  }
-  
-  /* =========================
-     PAGE HONORAIRES MOBILE
-     ========================= */
-  
-  .honoraires-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-  
-  .honos-search,
-  .honos-select {
-    width: 100%;
-    min-width: 100%;
-  }
-  
-  .honos-split {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .honos-totaux {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-    text-align: center;
-  }
-  
-  .honoraires-tabs .tab {
-    padding: 0.75rem 0.5rem;
-    font-size: 0.75rem;
-  }
-  
-  /* =========================
-     PAGE SITUATION GLOBALE MOBILE
-     ========================= */
-  
-  #situation-globale .header-actions {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  #situation-globale .form-row {
-    grid-template-columns: 1fr;
-  }
-  
-  /* Graphiques */
-  #chartStatut,
-  #chartTopClients {
-    height: 200px;
-  }
-  
-  /* =========================
-     PAGE UTILISATEURS MOBILE
-     ========================= */
-  
-  #gestion-utilisateurs .header-actions {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  
-  .user-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  
-  /* =========================
-     MENUS DÉROULANTS MOBILE
-     ========================= */
-  
-  .dropdown-content {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 300px;
-    z-index: 10000;
-    max-height: 70vh;
-    overflow-y: auto;
-  }
-  
-  .action-menu {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90vw;
-    max-width: 280px;
-    z-index: 10000;
-  }
-  
-  /* Overlay pour menus */
-  .dropdown-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 9999;
-  }
-  
-  /* =========================
-     MODALS MOBILE
-     ========================= */
-  
-  .modal-content {
-    margin: 1rem;
-    width: calc(100% - 2rem);
-    max-height: calc(100vh - 2rem);
-  }
-  
-  .modal-header {
-    padding: 1rem 1.5rem;
-  }
-  
-  .modal-body {
-    padding: 1.5rem;
-  }
-  
-  /* =========================
-     ÉLÉMENTS SPÉCIAUX MOBILE
-     ========================= */
-  
-  /* Masquer certains éléments sur mobile */
-  .desktop-only {
-    display: none !important;
-  }
-  
-  .mobile-only {
-    display: block !important;
-  }
-  
-  /* Loading states */
-  .loading-state {
-    padding: 1.5rem;
-  }
-  
-  .loading-spinner {
-    width: 30px;
-    height: 30px;
-  }
-  
-  /* Alertes et messages */
-  .alert-message {
-    padding: 1rem;
-    flex-direction: column;
-    text-align: center;
-    gap: 0.5rem;
-  }
-  
-  .no-data-card {
-    padding: 2rem 1rem;
-  }
-  
-  .no-data-card i {
-    font-size: 2rem;
-  }
-}
-
-/* ============================================
-   TRÈS PETITS ÉCRANS (Mobile < 400px)
-   ============================================ */
-
-@media (max-width: 400px) {
-  .main-content {
-    padding: 0.75rem;
-  }
-  
-  .header h2 {
-    font-size: 1.25rem;
-  }
-  
-  .tab {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.75rem;
-  }
-  
-  .stats-grid {
-    gap: 0.75rem;
-  }
-  
-  .stat-card {
-    padding: 0.75rem;
-  }
-  
-  .stat-info h3 {
-    font-size: 1.25rem;
-  }
-  
-  .card {
-    padding: 0.75rem;
-  }
-}
-
-/* ============================================
-   ORIENTATION PAYSAGE MOBILE
-   ============================================ */
-
-@media (max-width: 768px) and (orientation: landscape) {
-  .sidebar {
-    height: 60px;
-  }
-  
-  .nav-links {
-    max-height: 60px;
-  }
-  
-  .nav-links a {
-    height: 60px;
-    font-size: 0.65rem;
-  }
-  
-  .nav-links i {
-    font-size: 0.9rem;
-    margin-bottom: 0.1rem;
-  }
-  
-  .main-content {
-    margin-bottom: 60px;
-  }
-  
-  .modal-content {
-    max-height: calc(100vh - 1rem);
-  }
-}
-
-/* ============================================
-   UTILITAIRES MOBILE
-   ============================================ */
-
-.mobile-only {
-  display: none;
-}
-
-.desktop-only {
-  display: block;
-}
-
-/* Bouton menu mobile */
-.mobile-menu-toggle {
-  display: none;
-  position: fixed;
-  bottom: 85px;
-  right: 20px;
-  z-index: 1001;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  box-shadow: var(--shadow-lg);
-  font-size: 1.2rem;
-}
-
-/* Safe areas pour iPhone X+ */
-@supports (padding: max(0px)) {
-  .sidebar {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  
-  .main-content {
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-  }
-}
-
-/* ============================================
-   ANIMATIONS MOBILE
-   ============================================ */
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideDown {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100%);
-  }
-}
-
-.sidebar {
-  animation: slideUp 0.3s ease;
-}
-
-.sidebar.mobile-hidden {
-  animation: slideDown 0.3s ease;
-}
-
-/* ============================================
-   CORRECTIONS TOUCH SPECIFIQUES
-   ============================================ */
-
-/* Améliorer la précision du touch */
-@media (hover: none) and (pointer: coarse) {
-  .btn-primary,
-  .btn-secondary,
-  .btn-success,
-  .btn-warning,
-  .tab,
-  .nav-links a {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
-  .form-group input,
-  .form-group select {
-    min-height: 44px;
-  }
-  
-  .dropdown-content a,
-  .action-menu .menu-item {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-  }
-  
-  /* Agrandir les zones cliquables */
-  .clients-table td {
-    padding: 1rem 0.75rem;
-  }
-  
-  .actions button {
-    min-width: 44px;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-/* Désactiver les animations pour les préférences réduites */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* =====================================
-Style pour les filtres Type declarations
-========================================*/
-#echeances .header-actions {
-  display: flex;
-  align-items: end;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-#echeances .form-group {
-  margin-bottom: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-#echeances .form-group label {
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-#echeances #filtreEtat,
-#echeances #filtreTypeDeclaration,
-#echeances #anneeSelection {
-  width: 200px;
-  height: 42px;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: white;
-  font-size: 0.875rem;
-}
-
-#echeances .custom-select-wrapper {
-  min-width: 300px !important;
-  width: auto;
-}
-
-/* Responsive mobile */
-@media (max-width: 768px) {
-  #echeances .header-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  #echeances #filtreEtat,
-  #echeances #filtreTypeDeclaration,
-  #echeances #anneeSelection,
-  #echeances .custom-select-wrapper {
-    width: 100%;
-    min-width: 100% !important;
-  }
-}
-/* Le style .action-menu existe déjà, mais on peut l'optimiser */
-.action-menu .menu-item {
-  width: 100%;
-  border: none;
-  background: transparent;
-  text-align: left;
-  padding: .5rem .75rem;
-  cursor: pointer;
-  border-radius: 6px;
-  font-size: .9rem;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  transition: background-color 0.2s ease;
-}
-
-.action-menu .menu-item:hover {
-  background: var(--bg-secondary);
-}
-
 /* Style spécifique pour le bouton principal honoraires */
 #honoraires .action-toggle {
   background: var(--primary-color);
@@ -3145,66 +2247,10 @@ Style pour les filtres Type declarations
 #honoraires .action-toggle:hover {
   background: var(--primary-dark);
 }
-/* Styles pour les dropdowns qui s'affichent vers le haut */
-.dropdown-content.dropdown-up {
-  bottom: 100%;
-  top: auto !important;
-}
-
-.action-menu.menu-up {
-  bottom: 100%;
-  top: auto !important;
-  transform: translateY(-5px);
-}
-
-/* Ajustements pour les menus d'action des tableaux */
-.action-dropdown {
-  position: relative;
-}
-
-.action-menu {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 1000;
-  background: white;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 160px;
-  margin-top: 5px;
-  display: none;
-}
-
-.action-menu.show {
-  display: block;
-}
-
-/* Pour les dropdowns clients */
-.dropdown {
-  position: relative;
-}
-
-.dropdown-content {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 1000;
-  background: white;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 160px;
-  display: none;
-}
-
-.dropdown-content.show {
-  display: block;
-}
 
 /* Styles pour l'affichage de la checklist des déclarations */
 #checklistContent {
-  max-height: none !important; /* Supprime la limite de hauteur */
+  max-height: none !important;
   height: auto !important;
   overflow-y: visible !important;
 }
@@ -3223,14 +2269,153 @@ Style pour les filtres Type declarations
   border-bottom: none;
 }
 
-/* Assurez-vous que le conteneur parent n'a pas de hauteur limitée */
 .tab-content {
   overflow: visible !important;
 }
 
-/* Si vous utilisez un conteneur avec scroll, ajustez-le */
 .checklist-container {
   max-height: none !important;
   height: auto !important;
   overflow: visible !important;
+}
+
+/* =====================================
+   FILTRES ÉCHÉANCES - MÊME LIGNE CORRIGÉ
+   ===================================== */
+
+#echeances .header-actions {
+  display: flex;
+  align-items: end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: nowrap; /* ← EMPÊCHER LE RETOUR À LA LIGNE */
+  overflow: visible; /* ← IMPORTANT */
+}
+
+#echeances .form-group {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0; /* ← EMPÊCHER LE RÉTRÉCISSEMENT */
+}
+
+#echeances .form-group label {
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+#echeances #anneeSelection {
+  width: 150px;
+  height: 42px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
+  font-size: 0.875rem;
+}
+
+#echeances #filtreEtat {
+  width: 160px;
+  height: 42px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
+  font-size: 0.875rem;
+}
+
+#echeances #filtreTypeDeclaration {
+  width: 180px;
+  height: 42px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
+  font-size: 0.875rem;
+}
+
+#echeances .custom-select-wrapper {
+  min-width: 250px;
+  width: 250px;
+  flex-shrink: 0;
+}
+
+#echeances .select-selected {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Mobile : passage en colonne forcé seulement sur très petits écrans */
+@media (max-width: 1024px) {
+  #echeances .header-actions {
+    flex-wrap: wrap; /* ← Retour à la ligne si nécessaire */
+    gap: 0.75rem;
+  }
+  
+  #echeances .form-group {
+    flex-shrink: 1; /* ← Permettre l'adaptation */
+  }
+  
+  #echeances #anneeSelection,
+  #echeances #filtreEtat,
+  #echeances #filtreTypeDeclaration {
+    width: 140px;
+  }
+  
+  #echeances .custom-select-wrapper {
+    min-width: 200px;
+    width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  #echeances .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  #echeances #anneeSelection,
+  #echeances #filtreEtat,
+  #echeances #filtreTypeDeclaration,
+  #echeances .custom-select-wrapper {
+    width: 100%;
+    min-width: 100%;
+  }
+}
+/* =====================================
+   BOUTON IMPRIMER ÉCHÉANCES
+   ===================================== */
+
+.echeances-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+#btnImprimerListeEcheances {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .echeances-actions {
+    justify-content: center;
+    margin-top: 1rem;
+  }
+  
+  #btnImprimerListeEcheances {
+    width: 100%;
+    justify-content: center;
+  }
 }

@@ -254,6 +254,7 @@ async function initializeApp(){
     setupEditClientSelect(); 
     setupViewClientSelect();
     setupPrintButton();
+    setupBoutonImprimerEcheances();
     
     // 3. ÉVÉNEMENTS
     document.getElementById('logoutBtn').addEventListener('click', handleLogout);
@@ -2319,8 +2320,8 @@ function creerContenuFicheClient(client) {
             Document généré le ${dateGeneration}
         </div>
     </div>
-</body>
-</html>
+  </body>
+  </html>
     `;
 }
 
@@ -2505,6 +2506,257 @@ function initializeEcheancesDefaults() {
   // Charger les échéances immédiatement
   loadEcheancesTable();
 }
+
+// Fonction pour imprimer la liste filtrée
+function imprimerListeEcheances() {
+  const annee = document.getElementById('anneeSelection').value;
+  const etat = document.getElementById('filtreEtat').value;
+  const typeDeclaration = document.getElementById('filtreTypeDeclaration').value;
+  const clientId = getSelectedClientId('filtreClient');
+  
+  // Récupérer les données filtrées actuelles
+  const echeancesFiltrees = getEcheancesFiltrees();
+  
+  if (!echeancesFiltrees.length) {
+    alert('Aucune échéance à imprimer avec les filtres actuels');
+    return;
+  }
+  
+  genererPDFListeEcheances(echeancesFiltrees, annee, etat, typeDeclaration, clientId);
+}
+
+// Fonction pour récupérer les échéances filtrées (similaire à loadEcheancesTable)
+function getEcheancesFiltrees() {
+  const annee = document.getElementById('anneeSelection').value;
+  const etat = document.getElementById('filtreEtat').value;
+  const typeDeclaration = document.getElementById('filtreTypeDeclaration').value;
+  const clientId = getSelectedClientId('filtreClient') || 'tous';
+  
+  let echeancesFiltrees = echeances.filter(e => e.annee_comptable == annee);
+  
+  // Appliquer les mêmes filtres que dans loadEcheancesTable
+  if (clientId !== 'tous') {
+    echeancesFiltrees = echeancesFiltrees.filter(e => e.client_id === clientId);
+  }
+  
+  if (typeDeclaration !== 'tous') {
+    echeancesFiltrees = echeancesFiltrees.filter(e => 
+      e.declaration_types?.type_declaration === typeDeclaration
+    );
+  }
+  
+  if (etat !== 'tous') {
+    echeancesFiltrees = echeancesFiltrees.filter(e => 
+      calculerEtatEcheance(e) === etat
+    );
+  }
+  
+  return echeancesFiltrees;
+}
+
+// Fonction pour générer le PDF
+function genererPDFListeEcheances(echeances, annee, etatFiltre, typeFiltre, clientId) {
+  const printWindow = window.open('', '_blank');
+  const dateGeneration = new Date().toLocaleDateString('fr-FR');
+  
+  // Trouver le client sélectionné
+  const client = clientId && clientId !== 'tous' 
+    ? clients.find(c => c.id === clientId) 
+    : null;
+  
+  const printContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liste des Échéances - ${annee}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: white;
+            color: #1f2937;
+            line-height: 1.4;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 15px;
+        }
+        
+        .title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+        
+        .filtres-info {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border-left: 4px solid #2563eb;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+        }
+        
+        .table th {
+            background: #2563eb;
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .table td {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        .etat-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .etat-en_cours { background: #dbeafe; color: #1d4ed8; }
+        .etat-tardive { background: #fef3c7; color: #92400e; }
+        .etat-deposee { background: #d1fae5; color: #065f46; }
+        .etat-payee { background: #dcfce7; color: #166534; }
+        .etat-non_exigible { background: #e5e7eb; color: #6b7280; }
+        
+        .summary {
+            background: #f0f9ff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #0ea5e9;
+            margin-top: 2rem;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+        
+        @page {
+            margin: 10mm;
+        }
+        
+        @media print {
+            body {
+                background: white !important;
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="title">NEW FID - Cabinet Comptable</h1>
+        <h2 class="subtitle">Liste des Échéances</h2>
+    </div>
+    
+    <div class="filtres-info">
+        <h3 style="margin: 0 0 0.5rem 0; color: #1f2937;">Filtres appliqués</h3>
+        <p style="margin: 0.25rem 0; color: #6b7280;">
+            <strong>Exercice:</strong> ${annee}
+            ${etatFiltre !== 'tous' ? ` | <strong>État:</strong> ${getLibelleEtat(etatFiltre)}` : ''}
+            ${typeFiltre !== 'tous' ? ` | <strong>Type:</strong> ${typeFiltre}` : ''}
+            ${client ? ` | <strong>Client:</strong> ${client.nom_raison_sociale}` : ''}
+        </p>
+    </div>
+    
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Client</th>
+                <th>Déclaration</th>
+                <th>Date d'échéance</th>
+                <th>État</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${echeances.map(e => {
+                const etat = calculerEtatEcheance(e);
+                const nomClient = e.clients?.nom_raison_sociale || 'N/A';
+                const nomDeclaration = e.nom_echeance || e.declaration_types?.nom_template || 'N/A';
+                const dateEcheance = parseYMDLocal(e.date_fin).toLocaleDateString('fr-FR');
+                
+                return `
+                <tr>
+                    <td>${nomClient}</td>
+                    <td>${nomDeclaration}</td>
+                    <td>${dateEcheance}</td>
+                    <td>
+                        <span class="etat-badge etat-${etat}">
+                            ${getLibelleEtat(etat)}
+                        </span>
+                    </td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+    </table>
+    
+    <div class="summary">
+        <h4 style="margin: 0 0 1rem 0; color: #0ea5e9;">Récapitulatif</h4>
+        <p style="margin: 0;"><strong>Total des échéances:</strong> ${echeances.length}</p>
+        <p style="margin: 0.5rem 0 0 0;"><strong>Date de génération:</strong> ${dateGeneration}</p>
+    </div>
+    
+    <div class="footer">
+        Document généré par GEST FID - NEW FID Cabinet Comptable
+    </div>
+</body>
+</html>
+  `;
+  
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  
+  // Attendre le chargement puis imprimer
+  printWindow.onload = function() {
+    printWindow.focus();
+    printWindow.print();
+    // printWindow.close(); // Décommentez pour fermer automatiquement
+  };
+}
+
+// Initialisation - À appeler dans votre code existant
+function setupBoutonImprimerEcheances() {
+  const btnImprimer = document.getElementById('btnImprimerListeEcheances');
+  if (btnImprimer) {
+    btnImprimer.addEventListener('click', imprimerListeEcheances);
+  }
+}
+
+// Appelez cette fonction dans votre initialisation
+// setupBoutonImprimerEcheances();
 /* =========================
    GESTION AFFECTATION
    ========================= */
@@ -2736,41 +2988,114 @@ async function handleAffectation(){
     return;
   }
   
+  const client = clients.find(c => c.id === clientId);
+  const clientNom = client ? client.nom_raison_sociale : 'le client';
+  
   try {
     const boxes = document.querySelectorAll('.item-checkbox');
-    const ids = []; 
+    const idsSelectionnes = []; 
+    
     boxes.forEach(b => {
-      if(b.checked) ids.push(b.getAttribute('data-declaration-id'));
+      if(b.checked && !b.disabled) {
+        idsSelectionnes.push(b.getAttribute('data-declaration-id'));
+      }
     });
 
-    await supabase.from('client_declarations').delete().eq('client_id', clientId).eq('annee_comptable', annee);
-    
-    for(const declId of ids) {
-      const d = declarationTypes.find(x => x.id === declId); 
-      if(!d) continue;
+    // CAS 1: AUCUNE SÉLECTION = TOUT SUPPRIMER
+    if (idsSelectionnes.length === 0) {
+      const confirmation = confirm(
+        `Aucune déclaration sélectionnée pour ${clientNom} (${annee}).\n\n` +
+        `Voulez-vous supprimer TOUTES les déclarations affectées à cet exercice ?\n\n` +
+        `✅ Cette action est réversible en réaffectant les déclarations.`
+      );
       
-      const d1 = calculerDateReellePourDecl(d, d.date_debut_template, annee);
-      const d2 = calculerDateReellePourDecl(d, d.date_fin_template, annee);
+      if (!confirmation) return;
+
+      // Suppression en cascade
+      await supabase.from('client_declarations')
+        .delete()
+        .eq('client_id', clientId)
+        .eq('annee_comptable', annee);
       
-      await supabase.from('client_declarations').insert({
-        client_id: clientId, 
-        declaration_type_id: declId, 
-        annee_comptable: parseInt(annee),
-        date_debut: toYMDLocal(d1), 
-        date_fin: toYMDLocal(d2), 
-        est_obligatoire: true
-      });
+      await supabase.from('echeances')
+        .delete()
+        .eq('client_id', clientId)
+        .eq('annee_comptable', annee);
+      
+      alert(`✅ Toutes les déclarations ont été supprimées pour ${clientNom} (${annee})`);
     }
     
-    await genererEcheancesAutomatiques(clientId, annee);
-    alert('Déclarations affectées avec succès !');
+    // CAS 2: DÉCLARATIONS SÉLECTIONNÉES = REMPLACEMENT COMPLET
+    else {
+      const declarationsExistantes = clientDeclarations.filter(cd => 
+        cd.client_id === clientId && cd.annee_comptable == annee
+      );
+      
+      const ancienCount = declarationsExistantes.length;
+      const nouveauCount = idsSelectionnes.length;
+      
+      const confirmation = confirm(
+        `Mise à jour des déclarations pour ${clientNom} (${annee})\n\n` +
+        `📊 Actuellement: ${ancienCount} déclaration(s) affectée(s)\n` +
+        `🎯 Nouvelle sélection: ${nouveauCount} déclaration(s)\n\n` +
+        `Cette action va :\n` +
+        `• ❌ Supprimer les ${ancienCount} déclaration(s) existante(s)\n` +
+        `• ✅ Ajouter les ${nouveauCount} déclaration(s) sélectionnée(s)\n\n` +
+        `Confirmer la mise à jour ?`
+      );
+      
+      if (!confirmation) return;
+
+      // SUPPRESSION COMPLÈTE
+      await supabase.from('client_declarations')
+        .delete()
+        .eq('client_id', clientId)
+        .eq('annee_comptable', annee);
+
+      // INSERTION DES NOUVELLES
+      const declarationsAInserer = [];
+      
+      for(const declId of idsSelectionnes) {
+        const d = declarationTypes.find(x => x.id === declId); 
+        if(!d) continue;
+        
+        const d1 = calculerDateReellePourDecl(d, d.date_debut_template, annee);
+        const d2 = calculerDateReellePourDecl(d, d.date_fin_template, annee);
+        
+        declarationsAInserer.push({
+          client_id: clientId, 
+          declaration_type_id: declId, 
+          annee_comptable: parseInt(annee),
+          date_debut: toYMDLocal(d1), 
+          date_fin: toYMDLocal(d2), 
+          est_obligatoire: true
+        });
+      }
+      
+      if (declarationsAInserer.length > 0) {
+        const { error } = await supabase
+          .from('client_declarations')
+          .insert(declarationsAInserer);
+        
+        if (error) throw error;
+      }
+
+      // REGÉNÉRATION DES ÉCHÉANCES
+      await genererEcheancesAutomatiques(clientId, annee);
+      
+      alert(`✅ Mise à jour réussie !\n\n` +
+        `${clientNom} (${annee}) a maintenant ${nouveauCount} déclaration(s) affectée(s)`);
+    }
     
+    // MISE À JOUR FINALE
     await loadClientDeclarations(); 
     await loadEcheances();
     updatePrintButton();
+    loadAffectationChecklist(clientId);
+    
   } catch(e) {
-    console.error(e);
-    alert('Erreur lors de l\'affectation');
+    console.error('❌ Erreur affectation:', e);
+    alert('❌ Erreur lors de la mise à jour: ' + e.message);
   }
 }
 
