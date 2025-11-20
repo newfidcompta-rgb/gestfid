@@ -2979,124 +2979,147 @@ function updateCategoryStats(categoryAccordion) {
   }
 }
 
-async function handleAffectation(){
-  const clientId = getSelectedClientId('clientSelection');
-  const annee = document.getElementById('anneeAffectation').value;
-  
-  if(!clientId || clientId === 'tous') {
-    alert('Veuillez sélectionner un client');
-    return;
-  }
-  
-  const client = clients.find(c => c.id === clientId);
-  const clientNom = client ? client.nom_raison_sociale : 'le client';
-  
-  try {
-    const boxes = document.querySelectorAll('.item-checkbox');
-    const idsSelectionnes = []; 
+/* =========================
+   AFFECTATION - VERSION AMÉLIORÉE
+   ========================= */
+
+async function handleAffectation() {
+    const clientId = getSelectedClientId('clientSelection');
+    const annee = document.getElementById('anneeAffectation').value;
     
-    boxes.forEach(b => {
-      if(b.checked && !b.disabled) {
-        idsSelectionnes.push(b.getAttribute('data-declaration-id'));
-      }
-    });
-
-    // CAS 1: AUCUNE SÉLECTION = TOUT SUPPRIMER
-    if (idsSelectionnes.length === 0) {
-      const confirmation = confirm(
-        `Aucune déclaration sélectionnée pour ${clientNom} (${annee}).\n\n` +
-        `Voulez-vous supprimer TOUTES les déclarations affectées à cet exercice ?\n\n` +
-        `✅ Cette action est réversible en réaffectant les déclarations.`
-      );
-      
-      if (!confirmation) return;
-
-      // Suppression en cascade
-      await supabase.from('client_declarations')
-        .delete()
-        .eq('client_id', clientId)
-        .eq('annee_comptable', annee);
-      
-      await supabase.from('echeances')
-        .delete()
-        .eq('client_id', clientId)
-        .eq('annee_comptable', annee);
-      
-      alert(`✅ Toutes les déclarations ont été supprimées pour ${clientNom} (${annee})`);
+    if (!clientId || clientId === 'tous') {
+        showNotification('Veuillez sélectionner un client', 'warning');
+        return;
     }
     
-    // CAS 2: DÉCLARATIONS SÉLECTIONNÉES = REMPLACEMENT COMPLET
-    else {
-      const declarationsExistantes = clientDeclarations.filter(cd => 
-        cd.client_id === clientId && cd.annee_comptable == annee
-      );
-      
-      const ancienCount = declarationsExistantes.length;
-      const nouveauCount = idsSelectionnes.length;
-      
-      const confirmation = confirm(
-        `Mise à jour des déclarations pour ${clientNom} (${annee})\n\n` +
-        `📊 Actuellement: ${ancienCount} déclaration(s) affectée(s)\n` +
-        `🎯 Nouvelle sélection: ${nouveauCount} déclaration(s)\n\n` +
-        `Cette action va :\n` +
-        `• ❌ Supprimer les ${ancienCount} déclaration(s) existante(s)\n` +
-        `• ✅ Ajouter les ${nouveauCount} déclaration(s) sélectionnée(s)\n\n` +
-        `Confirmer la mise à jour ?`
-      );
-      
-      if (!confirmation) return;
-
-      // SUPPRESSION COMPLÈTE
-      await supabase.from('client_declarations')
-        .delete()
-        .eq('client_id', clientId)
-        .eq('annee_comptable', annee);
-
-      // INSERTION DES NOUVELLES
-      const declarationsAInserer = [];
-      
-      for(const declId of idsSelectionnes) {
-        const d = declarationTypes.find(x => x.id === declId); 
-        if(!d) continue;
+    const client = clients.find(c => c.id === clientId);
+    const clientNom = client ? client.nom_raison_sociale : 'le client';
+    
+    showLoading('Traitement de l\'affectation...');
+    
+    try {
+        const boxes = document.querySelectorAll('.item-checkbox');
+        const idsSelectionnes = []; 
         
-        const d1 = calculerDateReellePourDecl(d, d.date_debut_template, annee);
-        const d2 = calculerDateReellePourDecl(d, d.date_fin_template, annee);
-        
-        declarationsAInserer.push({
-          client_id: clientId, 
-          declaration_type_id: declId, 
-          annee_comptable: parseInt(annee),
-          date_debut: toYMDLocal(d1), 
-          date_fin: toYMDLocal(d2), 
-          est_obligatoire: true
+        boxes.forEach(b => {
+            if (b.checked && !b.disabled) {
+                idsSelectionnes.push(b.getAttribute('data-declaration-id'));
+            }
         });
-      }
-      
-      if (declarationsAInserer.length > 0) {
-        const { error } = await supabase
-          .from('client_declarations')
-          .insert(declarationsAInserer);
-        
-        if (error) throw error;
-      }
 
-      // REGÉNÉRATION DES ÉCHÉANCES
-      await genererEcheancesAutomatiques(clientId, annee);
-      
-      alert(`✅ Mise à jour réussie !\n\n` +
-        `${clientNom} (${annee}) a maintenant ${nouveauCount} déclaration(s) affectée(s)`);
+        // CAS 1: AUCUNE SÉLECTION = TOUT SUPPRIMER
+        if (idsSelectionnes.length === 0) {
+            const confirmation = await showConfirmationDialog(
+                'Supprimer toutes les déclarations',
+                `Aucune déclaration sélectionnée pour <strong>${clientNom}</strong> (${annee}).<br><br>
+                Voulez-vous supprimer <strong>TOUTES</strong> les déclarations affectées à cet exercice ?<br><br>
+                <em>✅ Cette action est réversible en réaffectant les déclarations.</em>`,
+                'warning'
+            );
+            
+            if (!confirmation) {
+                hideLoading();
+                return;
+            }
+
+            // Suppression en cascade
+            await supabase.from('client_declarations')
+                .delete()
+                .eq('client_id', clientId)
+                .eq('annee_comptable', annee);
+            
+            await supabase.from('echeances')
+                .delete()
+                .eq('client_id', clientId)
+                .eq('annee_comptable', annee);
+            
+            showNotification(`Toutes les déclarations ont été supprimées pour ${clientNom} (${annee})`, 'success');
+        }
+        
+        // CAS 2: DÉCLARATIONS SÉLECTIONNÉES = REMPLACEMENT COMPLET
+        else {
+            const declarationsExistantes = clientDeclarations.filter(cd => 
+                cd.client_id === clientId && cd.annee_comptable == annee
+            );
+            
+            const ancienCount = declarationsExistantes.length;
+            const nouveauCount = idsSelectionnes.length;
+            
+            const confirmation = await showConfirmationDialog(
+                'Mise à jour des déclarations',
+                `Mise à jour des déclarations pour <strong>${clientNom}</strong> (${annee})<br><br>
+                📊 <strong>Actuellement:</strong> ${ancienCount} déclaration(s) affectée(s)<br>
+                🎯 <strong>Nouvelle sélection:</strong> ${nouveauCount} déclaration(s)<br><br>
+                Cette action va :<br>
+                • ❌ Supprimer les ${ancienCount} déclaration(s) existante(s)<br>
+                • ✅ Ajouter les ${nouveauCount} déclaration(s) sélectionnée(s)`,
+                'info'
+            );
+            
+            if (!confirmation) {
+                hideLoading();
+                return;
+            }
+
+            // SUPPRESSION COMPLÈTE
+            await supabase.from('client_declarations')
+                .delete()
+                .eq('client_id', clientId)
+                .eq('annee_comptable', annee);
+
+            // INSERTION DES NOUVELLES
+            const declarationsAInserer = [];
+            
+            for (const declId of idsSelectionnes) {
+                const d = declarationTypes.find(x => x.id === declId); 
+                if (!d) continue;
+                
+                const d1 = calculerDateReellePourDecl(d, d.date_debut_template, annee);
+                const d2 = calculerDateReellePourDecl(d, d.date_fin_template, annee);
+                
+                declarationsAInserer.push({
+                    client_id: clientId, 
+                    declaration_type_id: declId, 
+                    annee_comptable: parseInt(annee),
+                    date_debut: toYMDLocal(d1), 
+                    date_fin: toYMDLocal(d2), 
+                    est_obligatoire: true
+                });
+            }
+            
+            if (declarationsAInserer.length > 0) {
+                const { error } = await supabase
+                    .from('client_declarations')
+                    .insert(declarationsAInserer);
+                
+                if (error) throw error;
+            }
+
+            // REGÉNÉRATION DES ÉCHÉANCES
+            await genererEcheancesAutomatiques(clientId, annee);
+            
+            showNotification(
+                `Mise à jour réussie ! ${clientNom} (${annee}) a maintenant ${nouveauCount} déclaration(s) affectée(s)`,
+                'success'
+            );
+        }
+        
+        // MISE À JOUR FINALE
+        await loadClientDeclarations(); 
+        await loadEcheances();
+        updatePrintButton();
+        loadAffectationChecklist(clientId);
+        
+    } catch (error) {
+        console.error('❌ Erreur affectation:', error);
+        showNotification(
+            `Erreur lors de la mise à jour: ${error.message}`,
+            'error',
+            8000
+        );
+    } finally {
+        hideLoading();
     }
-    
-    // MISE À JOUR FINALE
-    await loadClientDeclarations(); 
-    await loadEcheances();
-    updatePrintButton();
-    loadAffectationChecklist(clientId);
-    
-  } catch(e) {
-    console.error('❌ Erreur affectation:', e);
-    alert('❌ Erreur lors de la mise à jour: ' + e.message);
-  }
 }
 
 async function genererEcheancesAutomatiques(clientId, annee){
@@ -5508,4 +5531,423 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
+}
+
+/* =========================
+   SYSTÈME DE NOTIFICATION
+   ========================= */
+
+function showNotification(message, type = 'info', duration = 5000) {
+    // Créer ou réutiliser le container de notifications
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+        `;
+        document.body.appendChild(container);
+    }
+
+    // Créer la notification
+    const notification = document.createElement('div');
+    const typeConfig = {
+        success: { icon: 'fa-check', color: 'var(--success-color)', bg: '#d1fae5' },
+        error: { icon: 'fa-exclamation-triangle', color: 'var(--error-color)', bg: '#fee2e2' },
+        warning: { icon: 'fa-exclamation-circle', color: 'var(--warning-color)', bg: '#fef3c7' },
+        info: { icon: 'fa-info-circle', color: 'var(--info-color)', bg: '#dbeafe' }
+    };
+
+    const config = typeConfig[type] || typeConfig.info;
+
+    notification.style.cssText = `
+        background: white;
+        border-left: 4px solid ${config.color};
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        animation: slideInRight 0.3s ease-out;
+        max-width: 400px;
+    `;
+
+    notification.innerHTML = `
+        <i class="fas ${config.icon}" style="color: ${config.color}; font-size: 1.25rem;"></i>
+        <div style="flex: 1;">
+            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;">${getNotificationTitle(type)}</div>
+            <div style="color: var(--text-secondary); font-size: 0.875rem;">${message}</div>
+        </div>
+        <button class="notification-close" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.25rem;">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    container.appendChild(notification);
+
+    // Auto-fermeture
+    const timeout = setTimeout(() => {
+        removeNotification(notification);
+    }, duration);
+
+    // Fermeture manuelle
+    notification.querySelector('.notification-close').addEventListener('click', () => {
+        clearTimeout(timeout);
+        removeNotification(notification);
+    });
+
+    return notification;
+}
+
+function getNotificationTitle(type) {
+    const titles = {
+        success: 'Succès',
+        error: 'Erreur',
+        warning: 'Attention',
+        info: 'Information'
+    };
+    return titles[type] || 'Notification';
+}
+
+function removeNotification(notification) {
+    notification.style.animation = 'slideOutRight 0.3s ease-in';
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 300);
+}
+
+// Animation CSS
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        flex-direction: column;
+        gap: 1rem;
+        color: white;
+    }
+    
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
+
+/* =========================
+   GESTIONNAIRE DE CHARGEMENT
+   ========================= */
+
+let loadingStack = 0;
+
+function showLoading(message = 'Chargement...') {
+    loadingStack++;
+    
+    let overlay = document.getElementById('loading-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'loading-overlay';
+        overlay.className = 'loading-overlay';
+        overlay.innerHTML = `
+            <div class="loading-spinner"></div>
+            <div class="loading-message">${message}</div>
+        `;
+        document.body.appendChild(overlay);
+    } else {
+        overlay.querySelector('.loading-message').textContent = message;
+    }
+    
+    overlay.style.display = 'flex';
+}
+
+function hideLoading() {
+    loadingStack = Math.max(0, loadingStack - 1);
+    
+    if (loadingStack === 0) {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+}
+
+// Wrapper pour les fonctions asynchrones
+function withLoading(asyncFunction, loadingMessage = 'Chargement...') {
+    return async (...args) => {
+        showLoading(loadingMessage);
+        try {
+            const result = await asyncFunction(...args);
+            hideLoading();
+            return result;
+        } catch (error) {
+            hideLoading();
+            throw error;
+        }
+    };
+}
+
+/* =========================
+   DIALOGUE DE CONFIRMATION
+   ========================= */
+
+function showConfirmationDialog(title, message, type = 'warning') {
+    return new Promise((resolve) => {
+        // Créer l'overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            padding: 20px;
+        `;
+
+        // Configurations par type
+        const typeConfig = {
+            warning: { icon: 'fa-exclamation-triangle', color: 'var(--warning-color)' },
+            danger: { icon: 'fa-exclamation-circle', color: 'var(--error-color)' },
+            info: { icon: 'fa-info-circle', color: 'var(--info-color)' },
+            success: { icon: 'fa-check', color: 'var(--success-color)' }
+        };
+        
+        const config = typeConfig[type] || typeConfig.warning;
+
+        // Créer le dialogue
+        overlay.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 12px;
+                padding: 2rem;
+                max-width: 500px;
+                width: 100%;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+                animation: scaleIn 0.2s ease-out;
+            ">
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 50%;
+                        background: ${config.color}15;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: ${config.color};
+                        font-size: 1.5rem;
+                    ">
+                        <i class="fas ${config.icon}"></i>
+                    </div>
+                    <h3 style="margin: 0; color: var(--text-primary); font-size: 1.25rem;">${title}</h3>
+                </div>
+                
+                <div style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 2rem;">
+                    ${message}
+                </div>
+                
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button class="btn-secondary" id="confirm-cancel" style="padding: 0.75rem 1.5rem;">
+                        Annuler
+                    </button>
+                    <button class="btn-primary" id="confirm-ok" style="padding: 0.75rem 1.5rem; background: ${config.color};">
+                        Confirmer
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Gestion des événements
+        overlay.querySelector('#confirm-ok').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            resolve(true);
+        });
+
+        overlay.querySelector('#confirm-cancel').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            resolve(false);
+        });
+
+        // Fermeture en cliquant sur l'overlay
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+                resolve(false);
+            }
+        });
+
+        // Animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes scaleIn {
+                from {
+                    transform: scale(0.9);
+                    opacity: 0;
+                }
+                to {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    });
+}
+
+/* =========================
+   GESTION DES ERREURS AMÉLIORÉE
+   ========================= */
+
+function handleAsyncError(error, context = 'Opération') {
+    console.error(`❌ ${context}:`, error);
+    
+    let userMessage = 'Une erreur est survenue';
+    
+    if (error.message) {
+        userMessage = error.message;
+    } else if (error.code) {
+        switch (error.code) {
+            case 'NETWORK_ERROR':
+                userMessage = 'Erreur de connexion réseau';
+                break;
+            case 'TIMEOUT':
+                userMessage = 'Délai d\'attente dépassé';
+                break;
+            default:
+                userMessage = `Erreur technique (${error.code})`;
+        }
+    }
+    
+    showNotification(`${context} : ${userMessage}`, 'error', 8000);
+    
+    // Journalisation supplémentaire pour les erreurs critiques
+    if (error.code && error.code.includes('SUPABASE')) {
+        logErrorToService(error, context);
+    }
+}
+
+// Wrapper global pour les fonctions asynchrones
+function createAsyncHandler(asyncFunction, context = 'Opération') {
+    return async (...args) => {
+        try {
+            const result = await asyncFunction(...args);
+            return result;
+        } catch (error) {
+            handleAsyncError(error, context);
+            throw error;
+        }
+    };
+}
+
+// Exemple d'utilisation améliorée
+const safeHandleAffectation = createAsyncHandler(handleAffectation, 'Affectation des déclarations');
+/* =========================
+   INDICATEURS DE PROGRESSION
+   ========================= */
+
+function createProgressIndicator(totalSteps, message = 'Traitement en cours...') {
+    let currentStep = 0;
+    
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
+        flex-direction: column;
+        gap: 1.5rem;
+        color: white;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="text-align: center;">
+            <div class="loading-spinner" style="margin-bottom: 1rem;"></div>
+            <div style="font-size: 1.125rem; margin-bottom: 0.5rem;">${message}</div>
+            <div style="font-size: 0.875rem; opacity: 0.8;">Étape <span id="current-step">1</span>/${totalSteps}</div>
+        </div>
+        <div style="width: 300px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden;">
+            <div id="progress-bar" style="height: 6px; background: var(--primary-color); width: 0%; transition: width 0.3s ease;"></div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    return {
+        nextStep: (stepMessage) => {
+            currentStep++;
+            const progress = (currentStep / totalSteps) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            document.getElementById('current-step').textContent = currentStep;
+            
+            if (stepMessage) {
+                overlay.querySelector('div:nth-child(1) > div:nth-child(2)').textContent = stepMessage;
+            }
+        },
+        complete: () => {
+            document.body.removeChild(overlay);
+        },
+        error: (errorMessage) => {
+            document.body.removeChild(overlay);
+            showNotification(errorMessage, 'error');
+        }
+    };
 }
