@@ -658,20 +658,34 @@ async function resetUserPassword(userId) {
    JOURNALISATION ACTIVITÉS
    ========================= */
 
-async function logUserActivity(action, page, details = null) {
+/* =========================
+   JOURNALISATION ACTIVITÉS - VERSION COMPLÈTE
+   ========================= */
+
+/* =========================
+   JOURNALISATION ACTIVITÉS - VERSION AMÉLIORÉE
+   ========================= */
+
+async function logUserActivity(action, page, details = null, clientId = null) {
   try {
+    // ✅ TOUJOURS INCLURE client_id MÊME SI NULL
+    const activityData = {
+      user_id: currentUser.id,
+      action: action,
+      page: page,
+      details: details,
+      client_id: clientId, // Maintenant ça sera soit un ID valide soit null
+      ip_address: 'localhost',
+    };
+
     const { error } = await supabase
       .from('user_activity_logs')
-      .insert([{
-        user_id: currentUser.id,
-        action: action,
-        page: page,
-        details: details,
-        ip_address: 'localhost' // En production, récupérer l'IP réelle
-      }]);
+      .insert([activityData]);
     
     if (error) {
       console.error('❌ Erreur journalisation:', error);
+    } else {
+      console.log('✅ Activité journalisée avec client_id:', clientId);
     }
   } catch (error) {
     console.error('❌ Erreur journalisation:', error);
@@ -692,36 +706,30 @@ async function updateLastLogin(userId) {
 async function loadActivityLogs() {
   if (currentUser.role !== 'admin') return;
   
-  const userId = document.getElementById('filterUserActivity').value;
-  const actionType = document.getElementById('filterActionType').value;
+  console.log('🔍 Chargement historique...');
   
   try {
-    let query = supabase
+    // ✅ VERSION SIMPLIFIÉE - Sans jointure clients problématique
+    const { data, error } = await supabase
       .from('user_activity_logs')
       .select(`
         *,
         users(nom_complet, email)
+        // ❌ On retire clients() temporairement
       `)
       .order('created_at', { ascending: false })
       .limit(100);
-    
-    if (userId !== 'tous') {
-      query = query.eq('user_id', userId);
-    }
-    
-    if (actionType !== 'tous') {
-      query = query.ilike('action', `%${actionType}%`);
-    }
-    
-    const { data, error } = await query;
-    
+
     if (error) throw error;
     
     activityLogs = data || [];
+    console.log(`✅ ${activityLogs.length} activités chargées`);
+    
     displayActivityLogs();
     
   } catch (error) {
     console.error('❌ Erreur chargement historique:', error);
+    showNotification('Erreur lors du chargement de l\'historique', 'error');
   }
 }
 
@@ -733,10 +741,18 @@ function displayActivityLogs() {
     return;
   }
   
-  tbody.innerHTML = activityLogs.map(log => `
+  tbody.innerHTML = activityLogs.map(log => {
+    // ✅ RÉCUPÉRER LES INFOS CLIENTS DEPUIS LES DÉTAILS JSON
+    const details = log.details ? (typeof log.details === 'string' ? JSON.parse(log.details) : log.details) : {};
+    const clientInfo = details.client_nom ? 
+      `<div style="font-size: 0.75rem; color: var(--text-secondary);">
+         ${details.client_nom}
+       </div>` : '';
+    
+    return `
     <tr>
       <td>
-        <div>${new Date(log.created_at).toLocaleDateString('fr-FR')}</div>
+        <div style="font-weight: 600;">${new Date(log.created_at).toLocaleDateString('fr-FR')}</div>
         <div style="font-size: 0.75rem; color: var(--text-secondary);">
           ${new Date(log.created_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
         </div>
@@ -746,19 +762,110 @@ function displayActivityLogs() {
         <div style="font-size: 0.75rem; color: var(--text-secondary);">${log.users.email}</div>
       </td>
       <td>
-        <span class="badge">${formatAction(log.action)}</span>
+        <span class="badge badge-${getActionType(log.action)}">${formatAction(log.action)}</span>
       </td>
       <td>${formatPage(log.page)}</td>
       <td>
-        ${log.details ? 
-          `<span style="font-size: 0.875rem; color: var(--text-secondary);">${formatDetails(log.details)}</span>` : 
-          '-'
-        }
+        ${formatActivityDetails(log)}
+        ${clientInfo}
+        ${log.client_id ? `<div style="font-size: 0.7rem; color: #666;">Client ID: ${log.client_id}</div>` : ''}
       </td>
     </tr>
-  `).join('');
+    `;
+  }).join('');
 }
 
+function formatActivityDetails(log) {
+  if (!log.details) return '-';
+  
+  try {
+    const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+    const items = [];
+    
+    // Informations client
+    if (details.client_nom) {
+      items.push(`<strong>Client:</strong> ${details.client_nom}`);
+    }
+    
+    // Informations honoraires
+    if (details.montant) {
+      items.push(`<strong>Montant:</strong> ${formatMoney(details.montant)} DH`);
+    }
+    if (details.mode) {
+      items.push(`<strong>Mode:</strong> ${details.mode}`);
+    }
+    if (details.libelle) {
+      items.push(`<strong>Libellé:</strong> ${details.libelle}`);
+    }
+    
+    // Informations déclarations
+    if (details.declarations_count) {
+      items.push(`<strong>Déclarations:</strong> ${details.declarations_count}`);
+    }
+    if (details.annee) {
+      items.push(`<strong>Exercice:</strong> ${details.annee}`);
+    }
+    
+    // Informations codes
+    if (details.services_modifies) {
+      items.push(`<strong>Services:</strong> ${details.services_modifies.join(', ')}`);
+    }
+    if (details.nombre_champs_modifies) {
+      items.push(`<strong>Champs modifiés:</strong> ${details.nombre_champs_modifies}`);
+    }
+    
+    // Informations générales
+    if (details.modifications) {
+      items.push(`<strong>Modifications:</strong> ${details.modifications.length} champ(s)`);
+    }
+    if (details.raison) {
+      items.push(`<strong>Raison:</strong> ${details.raison}`);
+    }
+    
+    return items.length > 0 ? 
+      `<div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">${items.join('<br>')}</div>` : 
+      '-';
+  } catch {
+    return '<span style="font-size: 0.75rem; color: var(--text-secondary);">Données techniques</span>';
+  }
+}
+
+function getActionType(action) {
+  const actionLower = action.toLowerCase();
+  
+  if (actionLower.includes('connexion')) return 'info';
+  if (actionLower.includes('creation') || actionLower.includes('ajout')) return 'success';
+  if (actionLower.includes('modification') || actionLower.includes('mise_a_jour') || actionLower.includes('update')) return 'warning';
+  if (actionLower.includes('suppression') || actionLower.includes('archivage')) return 'error';
+  if (actionLower.includes('affectation')) return 'primary';
+  if (actionLower.includes('paiement') || actionLower.includes('facturation')) return 'secondary';
+  
+  return 'info';
+}
+
+function formatAction(action) {
+  const actions = {
+    'connexion': 'Connexion',
+    'creation_client': 'Création client',
+    'modification_client': 'Modification client',
+    'archivage_client': 'Archivage client',
+    'affectation_declarations': 'Affectation déclarations',
+    'suppression_totale_declarations': 'Suppression déclarations',
+    'changement_statut_echeance': 'Changement statut',
+    'creation_codes_acces': 'Création codes',
+    'modification_codes_acces': 'Modification codes',
+    'ajout_facturation': 'Nouvelle facturation',
+    'modification_facturation': 'Modification facturation',
+    'ajout_paiement': 'Nouveau paiement',
+    'modification_paiement': 'Modification paiement',
+    'creation_utilisateur': 'Création utilisateur',
+    'activation_utilisateur': 'Activation utilisateur',
+    'desactivation_utilisateur': 'Désactivation utilisateur',
+    'reinitialisation_mdp': 'Réinitialisation MDP'
+  };
+  
+  return actions[action] || action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
 function formatAction(action) {
   const actions = {
     'connexion': 'Connexion',
@@ -1549,8 +1656,12 @@ async function handleAddClient() {
       alert('Erreur enregistrement: ' + error.message); 
       return;
     }
+    await logUserActivity('creation_client', 'clients', {
+      client_id: data[0].id,
+      client_nom: clientData.nom_raison_sociale
+    });
     
-    alert('Client enregistré avec succès !'); 
+    showNotification('Client enregistré avec succès !', 'success');
     form.reset();
     
     // Recharger les clients
@@ -1612,8 +1723,13 @@ async function handleEditClient() {
       alert('Erreur modification: ' + error.message); 
       return;
     }
+    // ✅ JOURNALISATION
+    await logUserActivity('modification_client', 'clients', {
+      client_id: clientId,
+      modifications: Object.keys(clientData).filter(key => clientData[key] !== null)
+    });
     
-    alert('Client modifié avec succès !'); 
+    showNotification('Client modifié avec succès !', 'success');
     
     // Recharger les clients
     await loadClients();
@@ -1936,6 +2052,11 @@ async function archiverClient(clientId, raison) {
     });
     
     if (error) throw error;
+    // ✅ JOURNALISATION
+    await logUserActivity('archivage_client', 'clients', {
+      client_id: clientId,
+      raison: raison
+    });
     return true;
   } catch (error) {
     console.error('Erreur archivage:', error);
@@ -3033,6 +3154,15 @@ async function handleAffectation() {
                 .eq('client_id', clientId)
                 .eq('annee_comptable', annee);
             
+            // ✅ JOURNALISATION - SUPPRESSION TOTALE
+            await logUserActivity('suppression_totale_declarations', 'declarations', {
+                client_id: clientId,
+                client_nom: clientNom,
+                annee: annee,
+                action: 'suppression_complete',
+                declarations_supprimees: 'toutes'
+            }, clientId);
+            
             showNotification(`Toutes les déclarations ont été supprimées pour ${clientNom} (${annee})`, 'success');
         }
         
@@ -3069,6 +3199,7 @@ async function handleAffectation() {
 
             // INSERTION DES NOUVELLES
             const declarationsAInserer = [];
+            const nomsDeclarations = [];
             
             for (const declId of idsSelectionnes) {
                 const d = declarationTypes.find(x => x.id === declId); 
@@ -3085,6 +3216,8 @@ async function handleAffectation() {
                     date_fin: toYMDLocal(d2), 
                     est_obligatoire: true
                 });
+                
+                nomsDeclarations.push(d.nom_template);
             }
             
             if (declarationsAInserer.length > 0) {
@@ -3097,6 +3230,17 @@ async function handleAffectation() {
 
             // REGÉNÉRATION DES ÉCHÉANCES
             await genererEcheancesAutomatiques(clientId, annee);
+            
+            // ✅ JOURNALISATION - AFFECTATION DÉCLARATIONS
+            await logUserActivity('affectation_declarations', 'declarations', {
+                client_id: clientId,
+                client_nom: clientNom,
+                annee: annee,
+                ancien_nombre: ancienCount,
+                nouveau_nombre: nouveauCount,
+                declarations_ajoutees: nomsDeclarations,
+                declarations_ids: idsSelectionnes
+            }, clientId);
             
             showNotification(
                 `Mise à jour réussie ! ${clientNom} (${annee}) a maintenant ${nouveauCount} déclaration(s) affectée(s)`,
@@ -3112,6 +3256,15 @@ async function handleAffectation() {
         
     } catch (error) {
         console.error('❌ Erreur affectation:', error);
+        
+        // ✅ JOURNALISATION - ERREUR
+        await logUserActivity('erreur_affectation_declarations', 'declarations', {
+            client_id: clientId,
+            client_nom: client?.nom_raison_sociale,
+            annee: annee,
+            erreur: error.message
+        }, clientId);
+        
         showNotification(
             `Erreur lors de la mise à jour: ${error.message}`,
             'error',
@@ -3121,7 +3274,6 @@ async function handleAffectation() {
         hideLoading();
     }
 }
-
 async function genererEcheancesAutomatiques(clientId, annee){
   await supabase.from('echeances').delete().eq('client_id', clientId).eq('annee_comptable', annee);
   
@@ -3234,7 +3386,14 @@ async function mettreAJourStatutEcheance(id, statut){
     statut_manuel: statut, 
     date_depot: statut ? toYMDLocal(new Date()) : null
   }).eq('id', id);
-  
+  // ✅ JOURNALISATION
+    const echeance = echeances.find(e => e.id === id);
+    await logUserActivity('changement_statut_echeance', 'declarations', {
+      echeance_id: id,
+      client_id: echeance?.client_id,
+      nouveau_statut: statut,
+      nom_echeance: echeance?.nom_echeance
+    });
   await loadEcheances(); 
   loadEcheancesTable();
 }
@@ -3865,12 +4024,39 @@ async function handleSaveCodes(e) {
   
   const clientId = getSelectedClientId('ajoutClientSelect');
   if (!clientId) {
-    alert('❌ Veuillez sélectionner un client');
+    showNotification('❌ Veuillez sélectionner un client', 'warning');
     return;
   }
   
+  const client = clients.find(c => c.id === clientId);
+  const clientNom = client ? client.nom_raison_sociale : 'Client inconnu';
+  
+  showLoading('Sauvegarde des codes d\'accès...');
+  
   try {
     const formData = getFormData();
+    
+    // Identifier les services modifiés/ajoutés
+    const servicesModifies = [];
+    const champsModifies = Object.keys(formData).filter(key => formData[key] !== null && formData[key] !== '');
+    
+    // Déterminer quels services ont été modifiés
+    if (champsModifies.length > 0) {
+      const services = {
+        simpl: ['simpl_mdp_adhesion', 'simpl_login', 'simpl_mot_de_passe', 'simpl_email'],
+        damancom: ['damancom_login', 'damancom_mot_de_passe', 'damancom_email'],
+        barid: ['barid_login', 'barid_mot_de_passe', 'barid_email'],
+        email: ['email_login', 'email_mot_de_passe'],
+        marche: ['marche_login', 'marche_mot_de_passe'],
+        anapec: ['anapec_login', 'anapec_mot_de_passe']
+      };
+      
+      Object.keys(services).forEach(service => {
+        if (services[service].some(champ => champsModifies.includes(champ))) {
+          servicesModifies.push(service.toUpperCase());
+        }
+      });
+    }
     
     // CORRECTION : Toujours faire un UPDATE sur la table clients
     const { data, error } = await supabase
@@ -3882,7 +4068,25 @@ async function handleSaveCodes(e) {
     if (error) throw error;
     
     if (data && data[0]) {
-      alert(`✅ Codes ${isEditMode ? 'mis à jour' : 'enregistrés'} avec succès !`);
+      // ✅ JOURNALISATION - SAUVEGARDE DES CODES
+      await logUserActivity(
+        isEditMode ? 'modification_codes_acces' : 'creation_codes_acces', 
+        'codes', 
+        {
+          client_id: clientId,
+          client_nom: clientNom,
+          action: isEditMode ? 'modification' : 'creation',
+          services_modifies: servicesModifies,
+          nombre_champs_modifies: champsModifies.length,
+          champs_modifies: champsModifies
+        }, 
+        clientId
+      );
+      
+      showNotification(
+        `✅ Codes ${isEditMode ? 'mis à jour' : 'enregistrés'} avec succès pour ${clientNom} !`,
+        'success'
+      );
       
       // Recharger les données
       currentSelectedClientId = clientId;
@@ -3896,7 +4100,22 @@ async function handleSaveCodes(e) {
     
   } catch (error) {
     console.error('❌ Erreur sauvegarde codes:', error);
-    alert(`❌ Erreur lors de la sauvegarde: ${error.message}`);
+    
+    // ✅ JOURNALISATION - ERREUR SAUVEGARDE CODES
+    await logUserActivity('erreur_sauvegarde_codes', 'codes', {
+      client_id: clientId,
+      client_nom: client?.nom_raison_sociale,
+      erreur: error.message,
+      mode: isEditMode ? 'modification' : 'creation'
+    }, clientId);
+    
+    showNotification(
+      `❌ Erreur lors de la sauvegarde: ${error.message}`,
+      'error',
+      8000
+    );
+  } finally {
+    hideLoading();
   }
 }
 
@@ -3928,23 +4147,28 @@ function hasCodesData(client) {
    INITIALISATION HONORAIRES
    ========================= */
 
+/* =========================
+   INITIALISATION HONORAIRES - VERSION CORRIGÉE
+   ========================= */
+
 async function setupHonoraires(){
+  console.log('🎯 Initialisation honoraires - version corrigée');
+  
   fillHonorairesClients();
   
   const exo = document.getElementById('honorairesExerciceSelect');
-
-  if(clients.length) { 
-    honosClientId = clients[0].id; 
-    const selectElement = document.getElementById('honorairesClientSelect');
-    if (selectElement) {
-      const selectedDiv = selectElement.querySelector('.select-selected');
-      const selectedClient = clients[0];
-      selectedDiv.textContent = `${selectedClient.nom_raison_sociale}${selectedClient.ice ? ' - ' + selectedClient.ice : ''}`;
-      selectedDiv.setAttribute('data-client-id', honosClientId);
-    }
-  }
-  
   honosExercice = exo ? exo.value : new Date().getFullYear().toString();
+
+  // ✅ CORRECTION : Ne pas sélectionner de client par défaut
+  honosClientId = null;
+  
+  // ✅ Réinitialiser l'affichage du sélecteur
+  const selectElement = document.getElementById('honorairesClientSelect');
+  if (selectElement) {
+    const selectedDiv = selectElement.querySelector('.select-selected');
+    selectedDiv.textContent = 'Choisir un client...';
+    selectedDiv.removeAttribute('data-client-id');
+  }
 
   if (exo) {
     exo.addEventListener('change', () => { 
@@ -3965,9 +4189,14 @@ async function setupHonoraires(){
     });
   });
 
+  // ✅ CORRECTION : Désactiver les boutons tant qu'aucun client n'est sélectionné
+  document.getElementById('btnFacturerService').disabled = true;
+  document.getElementById('btnAjouterPaiement').disabled = true;
+  document.getElementById('btnImprimerSituation').disabled = true;
+
   document.getElementById('btnFacturerService').addEventListener('click', async () => {
     if(!honosClientId) {
-      alert('Sélectionnez un client');
+      showNotification('Veuillez sélectionner un client', 'warning');
       return;
     }
     
@@ -3995,7 +4224,7 @@ async function setupHonoraires(){
   
   document.getElementById('btnAjouterPaiement').addEventListener('click', async () => {
     if(!honosClientId) {
-      alert('Sélectionnez un client');
+      showNotification('Veuillez sélectionner un client', 'warning');
       return;
     }
     
@@ -4020,7 +4249,86 @@ async function setupHonoraires(){
     }
   });
 
-  refreshHonorairesUI();
+  // ✅ CORRECTION : Afficher l'état vide au lieu de rafraîchir
+  showEmptyHonorairesState();
+}
+
+/* =========================
+   ÉTAT VIDE HONORAIRES
+   ========================= */
+
+function showEmptyHonorairesState() {
+  console.log('📭 Affichage état vide des honoraires');
+  
+  // FACTURATIONS - État vide
+  const factuTbody = document.getElementById('factuTbody');
+  factuTbody.innerHTML = `
+    <tr>
+      <td colspan="5" class="no-data">
+        <div style="text-align: center; padding: 2rem;">
+          <i class="fas fa-hand-pointer" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+          <div style="font-size: 1.125rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            Aucun client sélectionné
+          </div>
+          <div style="color: var(--text-secondary); font-size: 0.875rem;">
+            Veuillez choisir un client dans la liste déroulante
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+
+  // PAIEMENTS - État vide
+  const payTbody = document.getElementById('payTbody');
+  payTbody.innerHTML = `
+    <tr>
+      <td colspan="5" class="no-data">
+        <div style="text-align: center; padding: 2rem;">
+          <i class="fas fa-hand-pointer" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+          <div style="font-size: 1.125rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            Aucun client sélectionné
+          </div>
+          <div style="color: var(--text-secondary); font-size: 0.875rem;">
+            Veuillez choisir un client dans la liste déroulante
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+
+  // SITUATION - État vide
+  updateEmptySituation();
+}
+
+function updateEmptySituation() {
+  document.getElementById('sitTotalServices').textContent = '0.00';
+  document.getElementById('sitTotalPaiements').textContent = '0.00';
+  document.getElementById('sitReport').textContent = '0.00';
+  document.getElementById('sitSolde').textContent = '0.00';
+  
+  // Tableaux situation vides
+  const sitFactuTbody = document.getElementById('sitFactuTbody');
+  const sitPayTbody = document.getElementById('sitPayTbody');
+  
+  sitFactuTbody.innerHTML = `
+    <tr>
+      <td colspan="3" class="no-data">
+        <div style="text-align: center; padding: 1rem; color: var(--text-secondary);">
+          <i class="fas fa-user-clock"></i> En attente de sélection d'un client
+        </div>
+      </td>
+    </tr>
+  `;
+  
+  sitPayTbody.innerHTML = `
+    <tr>
+      <td colspan="3" class="no-data">
+        <div style="text-align: center; padding: 1rem; color: var(--text-secondary);">
+          <i class="fas fa-user-clock"></i> En attente de sélection d'un client
+        </div>
+      </td>
+    </tr>
+  `;
 }
 
 async function loadHonorairesFromSupabase() {
@@ -4064,8 +4372,29 @@ async function loadHonorairesFromSupabase() {
    GESTION UI HONORAIRES
    ========================= */
 
+/* =========================
+   GESTION UI HONORAIRES - VERSION CORRIGÉE
+   ========================= */
+
 function refreshHonorairesUI(){
-  console.log('🔄 DEBUT refreshHonorairesUI');
+  console.log('🔄 refreshHonorairesUI - Client:', honosClientId);
+  
+  // ✅ CORRECTION : Vérifier si un client est sélectionné
+  if (!honosClientId) {
+    showEmptyHonorairesState();
+    
+    // Désactiver les boutons d'action
+    document.getElementById('btnFacturerService').disabled = true;
+    document.getElementById('btnAjouterPaiement').disabled = true;
+    document.getElementById('btnImprimerSituation').disabled = true;
+    
+    return;
+  }
+  
+  // ✅ Activer les boutons d'action
+  document.getElementById('btnFacturerService').disabled = false;
+  document.getElementById('btnAjouterPaiement').disabled = false;
+  document.getElementById('btnImprimerSituation').disabled = false;
   
   const rows = honosFactu.filter(x => x.client_id === honosClientId && x.exercice == honosExercice);
   const pay = honosPay.filter(x => x.client_id === honosClientId);
@@ -4081,7 +4410,18 @@ function refreshHonorairesUI(){
   const factuTbody = document.getElementById('factuTbody');
   factuTbody.innerHTML = '';
   if (rows.length === 0) {
-    factuTbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucune facturation</td></tr>';
+    factuTbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="no-data">
+          <div style="text-align: center; padding: 2rem;">
+            <i class="fas fa-receipt" style="font-size: 2rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+            <div style="color: var(--text-secondary);">
+              Aucune facturation pour cet exercice
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
   } else {
     rows.forEach(factu => {
       factuTbody.appendChild(createFactuRow(factu));
@@ -4092,7 +4432,18 @@ function refreshHonorairesUI(){
   const payTbody = document.getElementById('payTbody');
   payTbody.innerHTML = '';
   if (pay.length === 0) {
-    payTbody.innerHTML = '<tr><td colspan="5" class="no-data">Aucun paiement</td></tr>';
+    payTbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="no-data">
+          <div style="text-align: center; padding: 2rem;">
+            <i class="fas fa-money-bill-wave" style="font-size: 2rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+            <div style="color: var(--text-secondary);">
+              Aucun paiement enregistré
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
   } else {
     pay.forEach(payment => {
       payTbody.appendChild(createPayRow(payment));
@@ -4231,8 +4582,15 @@ async function addFacturation(facturationData) {
     
     if (data && data[0]) {
       honosFactu.unshift(data[0]);
-    }
     
+    // ✅ JOURNALISATION
+      await logUserActivity('ajout_facturation', 'honoraires', {
+        client_id: facturationData.client_id,
+        facturation_id: data[0].id,
+        montant: facturationData.montant,
+        libelle: facturationData.libelle
+      });
+    }
     return data ? data[0] : null;
   } catch (error) {
     console.error('Erreur ajout facturation:', error);
@@ -4252,6 +4610,13 @@ async function addPaiement(paiementData) {
     
     if (data && data[0]) {
       honosPay.unshift(data[0]);
+       // ✅ JOURNALISATION
+      await logUserActivity('ajout_paiement', 'honoraires', {
+        client_id: paiementData.client_id,
+        paiement_id: data[0].id,
+        montant: paiementData.montant,
+        mode: paiementData.mode
+      });
     }
     
     return data ? data[0] : null;
@@ -4264,11 +4629,15 @@ async function addPaiement(paiementData) {
 
 async function updateFacturation(id, updates) {
   try {
+    // Récupérer la facturation avant modification pour le log
+    const facturationAvant = honosFactu.find(item => item.id === id);
+    const client = clients.find(c => c.id === facturationAvant?.client_id);
+    
     const { data, error } = await supabase
       .from('honoraires_factures')
       .update(updates)
       .eq('id', id)
-      .select(); // ← AJOUT: Récupérer les données mises à jour
+      .select();
     
     if (error) throw error;
     
@@ -4278,24 +4647,52 @@ async function updateFacturation(id, updates) {
       if (index !== -1) {
         honosFactu[index] = { ...honosFactu[index], ...data[0] };
       }
+      
+      // ✅ JOURNALISATION - MODIFICATION FACTURATION
+      await logUserActivity('modification_facturation', 'honoraires', {
+        facturation_id: id,
+        client_id: facturationAvant?.client_id,
+        client_nom: client?.nom_raison_sociale,
+        modifications: Object.keys(updates),
+        ancien_libelle: facturationAvant?.libelle,
+        nouveau_libelle: updates.libelle,
+        ancien_montant: facturationAvant?.montant,
+        nouveau_montant: updates.montant,
+        ancienne_date: facturationAvant?.date,
+        nouvelle_date: updates.date
+      }, facturationAvant?.client_id);
+      
       console.log('✅ Facturation mise à jour:', data[0]);
     }
     
     return true;
   } catch (error) {
     console.error('❌ Erreur modification facturation:', error);
-    alert('Erreur lors de la modification: ' + error.message);
+    
+    // ✅ JOURNALISATION - ERREUR MODIFICATION FACTURATION
+    const facturationAvant = honosFactu.find(item => item.id === id);
+    await logUserActivity('erreur_modification_facturation', 'honoraires', {
+      facturation_id: id,
+      client_id: facturationAvant?.client_id,
+      erreur: error.message,
+      modifications_tentees: Object.keys(updates)
+    }, facturationAvant?.client_id);
+    
+    showNotification('Erreur lors de la modification: ' + error.message, 'error');
     return false;
   }
 }
-
 async function updatePaiement(id, updates) {
   try {
+    // Récupérer le paiement avant modification pour le log
+    const paiementAvant = honosPay.find(item => item.id === id);
+    const client = clients.find(c => c.id === paiementAvant?.client_id);
+    
     const { data, error } = await supabase
       .from('honoraires_paiements')
       .update(updates)
       .eq('id', id)
-      .select(); // ← AJOUT: Récupérer les données mises à jour
+      .select();
     
     if (error) throw error;
     
@@ -4305,17 +4702,43 @@ async function updatePaiement(id, updates) {
       if (index !== -1) {
         honosPay[index] = { ...honosPay[index], ...data[0] };
       }
+      
+      // ✅ JOURNALISATION - MODIFICATION PAIEMENT
+      await logUserActivity('modification_paiement', 'honoraires', {
+        paiement_id: id,
+        client_id: paiementAvant?.client_id,
+        client_nom: client?.nom_raison_sociale,
+        modifications: Object.keys(updates),
+        ancien_montant: paiementAvant?.montant,
+        nouveau_montant: updates.montant,
+        ancien_mode: paiementAvant?.mode,
+        nouveau_mode: updates.mode,
+        ancienne_date: paiementAvant?.date,
+        nouvelle_date: updates.date,
+        ancienne_ref: paiementAvant?.ref,
+        nouvelle_ref: updates.ref
+      }, paiementAvant?.client_id);
+      
       console.log('✅ Paiement mis à jour:', data[0]);
     }
     
     return true;
   } catch (error) {
     console.error('❌ Erreur modification paiement:', error);
-    alert('Erreur lors de la modification: ' + error.message);
+    
+    // ✅ JOURNALISATION - ERREUR MODIFICATION PAIEMENT
+    const paiementAvant = honosPay.find(item => item.id === id);
+    await logUserActivity('erreur_modification_paiement', 'honoraires', {
+      paiement_id: id,
+      client_id: paiementAvant?.client_id,
+      erreur: error.message,
+      modifications_tentees: Object.keys(updates)
+    }, paiementAvant?.client_id);
+    
+    showNotification('Erreur lors de la modification: ' + error.message, 'error');
     return false;
   }
 }
-
 async function deleteFacturation(id) {
   try {
     const { error } = await supabase
@@ -5951,3 +6374,31 @@ function createProgressIndicator(totalSteps, message = 'Traitement en cours...')
         }
     };
 }
+// Après avoir vidé la table, créez de nouvelles activités
+async function creerNouvellesActivitesTest() {
+  const testClient = clients[0]; // Premier client
+  
+  // ✅ Ces activités auront un client_id valide
+  await logUserActivity('creation_client', 'clients', {
+    client_nom: testClient.nom_raison_sociale,
+    action: 'test_creation'
+  }, testClient.id);
+  
+  await logUserActivity('modification_codes', 'codes', {
+    client_nom: testClient.nom_raison_sociale,
+    services: ['SIMPL', 'DAMANCOM']
+  }, testClient.id);
+  
+  await logUserActivity('affectation_declarations', 'declarations', {
+    client_nom: testClient.nom_raison_sociale,
+    declarations_count: 5
+  }, testClient.id);
+  
+  console.log('✅ Nouvelles activités créées avec client_id valide');
+  
+  // Rechargez l'historique
+  loadActivityLogs();
+}
+
+// Exécutez cette fonction après avoir vidé la table
+creerNouvellesActivitesTest();

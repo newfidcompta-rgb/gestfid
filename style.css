@@ -2419,3 +2419,9 @@ body {
     justify-content: center;
   }
 }
+/* Style pour historique des activités */
+.badge-info { background: var(--info-color); color: white; }
+.badge-success { background: var(--success-color); color: white; }
+.badge-warning { background: var(--warning-color); color: white; }
+.badge-error { background: var(--error-color); color: white; }
+.badge-secondary { background: var(--text-secondary); color: white; }
