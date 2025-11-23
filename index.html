@@ -944,6 +944,100 @@
             <div><strong>Solde exercice :</strong> <span id="sitSolde">0</span> DH</div>
           </div>
         </div>
+        <!-- Modal Facturation -->
+<div id="modalFacturation" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>＋ NOUVELLE FACTURATION</h2>
+        </div>
+        
+        <div class="modal-body">
+            <div class="info-fixe">
+                <div class="info-item">
+                    <label>Client :</label>
+                    <span id="modalClientNom">Dupont SARL</span>
+                </div>
+                <div class="info-item">
+                    <label>Exercice :</label>
+                    <span id="modalExercice">2024</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="facturationLibelle">Libellé :</label>
+                <input type="text" id="facturationLibelle" placeholder="Description du service">
+            </div>
+            
+            <div class="form-group">
+                <label for="facturationMontant">Montant :</label>
+                <input type="number" id="facturationMontant" placeholder="0.00" step="0.01">
+                <span class="devise">DH</span>
+            </div>
+            
+            <div class="form-group">
+                <label for="facturationDate">Date :</label>
+                <input type="text" id="facturationDate" placeholder="jj/mm/aaaa">
+                <div class="format-indication">📝 Format jj/mm/aaaa</div>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button class="btn-secondary" id="annulerFacturation">Annuler</button>
+            <button class="btn-primary" id="enregistrerFacturation">Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Paiement -->
+<div id="modalPaiement" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>💰 NOUVEAU PAIEMENT</h2>
+        </div>
+        
+        <div class="modal-body">
+            <div class="info-fixe">
+                <div class="info-item">
+                    <label>Client :</label>
+                    <span id="modalPaiementClientNom">Dupont SARL</span>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="paiementMode">Mode :</label>
+                <select id="paiementMode">
+                    <option value="Espèce">Espèce</option>
+                    <option value="Chèque">Chèque</option>
+                    <option value="Virement">Virement</option>
+                    <option value="Carte">Carte</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="paiementReference">Référence :</label>
+                <input type="text" id="paiementReference" placeholder="Numéro de référence">
+            </div>
+            
+            <div class="form-group">
+                <label for="paiementMontant">Montant :</label>
+                <input type="number" id="paiementMontant" placeholder="0.00" step="0.01">
+                <span class="devise">DH</span>
+            </div>
+            
+             <div class="form-group">
+                <label for="paiementDate">Date :</label>
+                <input type="text" id="paiementDate" placeholder="jj/mm/aaaa">
+                <div class="format-indication">📝 Format jj/mm/aaaa</div>
+             </div>
+          </div>
+        
+          <div class="modal-footer">
+            <button class="btn-secondary" id="annulerPaiement">Annuler</button>
+            <button class="btn-primary" id="enregistrerPaiement">Enregistrer</button>
+          </div>
+         </div>
+       </div>
       </div>
 
       <!-- =========================

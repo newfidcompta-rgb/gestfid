@@ -3357,6 +3357,17 @@ function doitBasculerNPlus1(decl){
   const type = (decl.type_declaration || '').toLowerCase();
   const nom = (decl.nom_template || '').toLowerCase();
   
+  // ✅ EXCEPTION : Cotisation minimale IS reste en N
+  const isCotisationMinimale = (
+    type.includes('is') && 
+    (nom.includes('cotisation minimale') || nom.includes('minimale') || nom.includes('3000'))
+  );
+  
+  if (isCotisationMinimale) {
+    console.log(`🎯 Cotisation minimale détectée: ${decl.nom_template} → reste en N`);
+    return false;
+  }
+  
   // RÈGLE SPÉCIALE : 4ème acompte IS reste en N
   const is4emeAcompteIS = (
     type.includes('is') && 
@@ -4152,15 +4163,17 @@ function hasCodesData(client) {
    ========================= */
 
 async function setupHonoraires(){
-  console.log('🎯 Initialisation honoraires - version corrigée');
+  console.log('🎯 Initialisation honoraires - version avec modals');
   
   fillHonorairesClients();
   
   const exo = document.getElementById('honorairesExerciceSelect');
   honosExercice = exo ? exo.value : new Date().getFullYear().toString();
+  currentHonosExercice = honosExercice;
 
   // ✅ CORRECTION : Ne pas sélectionner de client par défaut
   honosClientId = null;
+  currentHonosClientId = null;
   
   // ✅ Réinitialiser l'affichage du sélecteur
   const selectElement = document.getElementById('honorairesClientSelect');
@@ -4173,10 +4186,12 @@ async function setupHonoraires(){
   if (exo) {
     exo.addEventListener('change', () => { 
       honosExercice = exo.value; 
+      currentHonosExercice = honosExercice;
       refreshHonorairesUI(); 
     });
   }
 
+  // ✅ CONFIGURATION DES ONGLETS
   document.querySelectorAll('#honoraires .tab').forEach(tab => {
     tab.addEventListener('click', () => {
       const t = tab.getAttribute('data-tab');
@@ -4189,68 +4204,18 @@ async function setupHonoraires(){
     });
   });
 
-  // ✅ CORRECTION : Désactiver les boutons tant qu'aucun client n'est sélectionné
+  // ✅ INITIALISATION DES NOUVEAUX MODALS
+  initializeHonorairesModals();
+
+  // ✅ DÉSACTIVER LES BOUTONS TANT QU'AUCUN CLIENT N'EST SÉLECTIONNÉ
   document.getElementById('btnFacturerService').disabled = true;
   document.getElementById('btnAjouterPaiement').disabled = true;
   document.getElementById('btnImprimerSituation').disabled = true;
 
-  document.getElementById('btnFacturerService').addEventListener('click', async () => {
-    if(!honosClientId) {
-      showNotification('Veuillez sélectionner un client', 'warning');
-      return;
-    }
-    
-    const lib = prompt('Libellé du service ?'); 
-    if(!lib) return;
-    
-    const m = Number(prompt('Montant (DH) ?')); 
-    if(!m || isNaN(m)) return;
-    
-    const d = prompt('Date (YYYY-MM-DD) ?', toYMDLocal(new Date()));
-    
-    const facturationData = {
-      client_id: honosClientId, 
-      date: d, 
-      libelle: lib, 
-      exercice: parseInt(honosExercice), 
-      montant: m
-    };
-    
-    const result = await addFacturation(facturationData);
-    if (result) {
-      refreshHonorairesUI();
-    }
-  });
-  
-  document.getElementById('btnAjouterPaiement').addEventListener('click', async () => {
-    if(!honosClientId) {
-      showNotification('Veuillez sélectionner un client', 'warning');
-      return;
-    }
-    
-    const mode = prompt('Mode (Espèce/Chèque/Virement) ?') || 'Espèce';
-    const ref = prompt('Référence ?') || '-';
-    const m = Number(prompt('Montant (DH) ?')); 
-    if(!m || isNaN(m)) return;
-    
-    const d = prompt('Date (YYYY-MM-DD) ?', toYMDLocal(new Date()));
-    
-    const paiementData = {
-      client_id: honosClientId, 
-      date: d, 
-      mode: mode, 
-      ref: ref, 
-      montant: m
-    };
-    
-    const result = await addPaiement(paiementData);
-    if (result) {
-      refreshHonorairesUI();
-    }
-  });
-
   // ✅ CORRECTION : Afficher l'état vide au lieu de rafraîchir
   showEmptyHonorairesState();
+  
+  console.log('✅ Honoraires initialisés avec modals');
 }
 
 /* =========================
@@ -4378,6 +4343,10 @@ async function loadHonorairesFromSupabase() {
 
 function refreshHonorairesUI(){
   console.log('🔄 refreshHonorairesUI - Client:', honosClientId);
+  
+  // Mettre à jour les variables globales pour les modals
+  currentHonosClientId = honosClientId;
+  currentHonosExercice = honosExercice;
   
   // ✅ CORRECTION : Vérifier si un client est sélectionné
   if (!honosClientId) {
@@ -6374,31 +6343,310 @@ function createProgressIndicator(totalSteps, message = 'Traitement en cours...')
         }
     };
 }
-// Après avoir vidé la table, créez de nouvelles activités
-async function creerNouvellesActivitesTest() {
-  const testClient = clients[0]; // Premier client
-  
-  // ✅ Ces activités auront un client_id valide
-  await logUserActivity('creation_client', 'clients', {
-    client_nom: testClient.nom_raison_sociale,
-    action: 'test_creation'
-  }, testClient.id);
-  
-  await logUserActivity('modification_codes', 'codes', {
-    client_nom: testClient.nom_raison_sociale,
-    services: ['SIMPL', 'DAMANCOM']
-  }, testClient.id);
-  
-  await logUserActivity('affectation_declarations', 'declarations', {
-    client_nom: testClient.nom_raison_sociale,
-    declarations_count: 5
-  }, testClient.id);
-  
-  console.log('✅ Nouvelles activités créées avec client_id valide');
-  
-  // Rechargez l'historique
-  loadActivityLogs();
+// Variables globales
+let currentHonosClientId = null;
+let currentHonosExercice = null;
+
+// Initialisation des modals
+function initializeHonorairesModals() {
+    setupFacturationModal();
+    setupPaiementModal();
+    setupDateHandlers();
 }
 
-// Exécutez cette fonction après avoir vidé la table
-creerNouvellesActivitesTest();
+// Configuration modal facturation
+function setupFacturationModal() {
+    const btnFacturer = document.getElementById('btnFacturerService');
+    const modal = document.getElementById('modalFacturation');
+    const btnAnnuler = document.getElementById('annulerFacturation');
+    const btnEnregistrer = document.getElementById('enregistrerFacturation');
+    
+    btnFacturer.addEventListener('click', () => {
+        if (!currentHonosClientId) {
+            showNotification('Veuillez sélectionner un client', 'warning');
+            return;
+        }
+        openFacturationModal();
+    });
+    
+    btnAnnuler.addEventListener('click', closeFacturationModal);
+    btnEnregistrer.addEventListener('click', handleEnregistrerFacturation);
+    
+    // Fermer en cliquant en dehors
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeFacturationModal();
+        }
+    });
+    
+    // Raccourci clavier Echap
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closeFacturationModal();
+        }
+    });
+}
+
+// Configuration modal paiement
+function setupPaiementModal() {
+    const btnPaiement = document.getElementById('btnAjouterPaiement');
+    const modal = document.getElementById('modalPaiement');
+    const btnAnnuler = document.getElementById('annulerPaiement');
+    const btnEnregistrer = document.getElementById('enregistrerPaiement');
+    
+    btnPaiement.addEventListener('click', () => {
+        if (!currentHonosClientId) {
+            showNotification('Veuillez sélectionner un client', 'warning');
+            return;
+        }
+        openPaiementModal();
+    });
+    
+    btnAnnuler.addEventListener('click', closePaiementModal);
+    btnEnregistrer.addEventListener('click', handleEnregistrerPaiement);
+    
+    // Fermer en cliquant en dehors
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closePaiementModal();
+        }
+    });
+    
+    // Raccourci clavier Echap
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closePaiementModal();
+        }
+    });
+}
+
+// Gestion des dates
+function setupDateHandlers() {
+    // Formater automatiquement la date
+    const dateInputs = document.querySelectorAll('input[type="text"][placeholder*="jj/mm/aaaa"]');
+    dateInputs.forEach(input => {
+        input.addEventListener('input', formatDateInput);
+        input.addEventListener('blur', validateDateInput);
+    });
+}
+
+function formatDateInput(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    
+    if (value.length >= 2) {
+        value = value.substring(0, 2) + '/' + value.substring(2);
+    }
+    if (value.length >= 5) {
+        value = value.substring(0, 5) + '/' + value.substring(5, 9);
+    }
+    
+    e.target.value = value;
+}
+
+function validateDateInput(e) {
+    const value = e.target.value;
+    if (!value) return;
+    
+    const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    if (!regex.test(value)) {
+        e.target.style.borderColor = 'var(--error-color)';
+        return false;
+    }
+    
+    const [, day, month, year] = value.match(regex);
+    const date = new Date(year, month - 1, day);
+    
+    if (date.getDate() != day || date.getMonth() + 1 != month || date.getFullYear() != year) {
+        e.target.style.borderColor = 'var(--error-color)';
+        return false;
+    }
+    
+    e.target.style.borderColor = 'var(--success-color)';
+    return true;
+}
+
+// OUVRIR LES MODALS
+function openFacturationModal() {
+    const modal = document.getElementById('modalFacturation');
+    const client = clients.find(c => c.id === currentHonosClientId);
+    
+    if (!client) {
+        showNotification('Client non trouvé', 'error');
+        return;
+    }
+    
+    // Mettre à jour les informations fixes
+    document.getElementById('modalClientNom').textContent = client.nom_raison_sociale;
+    document.getElementById('modalExercice').textContent = currentHonosExercice;
+    
+    // Pré-remplir les champs
+    document.getElementById('facturationLibelle').value = '';
+    document.getElementById('facturationMontant').value = '';
+    document.getElementById('facturationDate').value = getTodayFormatted();
+    
+    // Afficher le modal
+    modal.style.display = 'flex';
+    document.getElementById('facturationLibelle').focus();
+}
+
+function openPaiementModal() {
+    const modal = document.getElementById('modalPaiement');
+    const client = clients.find(c => c.id === currentHonosClientId);
+    
+    if (!client) {
+        showNotification('Client non trouvé', 'error');
+        return;
+    }
+    
+    // Mettre à jour les informations fixes
+    document.getElementById('modalPaiementClientNom').textContent = client.nom_raison_sociale;
+    
+    // Pré-remplir les champs
+    document.getElementById('paiementMode').value = 'Virement';
+    document.getElementById('paiementReference').value = '';
+    document.getElementById('paiementMontant').value = '';
+    document.getElementById('paiementDate').value = getTodayFormatted();
+    
+    // Afficher le modal
+    modal.style.display = 'flex';
+    document.getElementById('paiementReference').focus();
+}
+
+// FERMER LES MODALS
+function closeFacturationModal() {
+    document.getElementById('modalFacturation').style.display = 'none';
+    resetFacturationForm();
+}
+
+function closePaiementModal() {
+    document.getElementById('modalPaiement').style.display = 'none';
+    resetPaiementForm();
+}
+
+// RÉINITIALISER LES FORMULAIRES
+function resetFacturationForm() {
+    document.getElementById('facturationLibelle').value = '';
+    document.getElementById('facturationMontant').value = '';
+    document.getElementById('facturationDate').value = '';
+}
+
+function resetPaiementForm() {
+    document.getElementById('paiementMode').value = 'Virement';
+    document.getElementById('paiementReference').value = '';
+    document.getElementById('paiementMontant').value = '';
+    document.getElementById('paiementDate').value = '';
+}
+
+// GESTION DE L'ENREGISTREMENT
+async function handleEnregistrerFacturation() {
+    const libelle = document.getElementById('facturationLibelle').value.trim();
+    const montant = parseFloat(document.getElementById('facturationMontant').value);
+    const date = document.getElementById('facturationDate').value;
+    
+    // Validation
+    if (!libelle) {
+        showNotification('Le libellé est obligatoire', 'warning');
+        document.getElementById('facturationLibelle').focus();
+        return;
+    }
+    
+    if (!montant || isNaN(montant) || montant <= 0) {
+        showNotification('Le montant doit être supérieur à 0', 'warning');
+        document.getElementById('facturationMontant').focus();
+        return;
+    }
+    
+    if (!validateDateInput({ target: document.getElementById('facturationDate') })) {
+        showNotification('La date est invalide (format jj/mm/aaaa)', 'warning');
+        document.getElementById('facturationDate').focus();
+        return;
+    }
+    
+    // Convertir la date en format YYYY-MM-DD
+    const [day, month, year] = date.split('/');
+    const dateFormatted = `${year}-${month}-${day}`;
+    
+    const facturationData = {
+        client_id: currentHonosClientId,
+        date: dateFormatted,
+        libelle: libelle,
+        exercice: parseInt(currentHonosExercice),
+        montant: montant
+    };
+    
+    showLoading('Enregistrement de la facturation...');
+    
+    try {
+        const result = await addFacturation(facturationData);
+        if (result) {
+            showNotification('Facturation enregistrée avec succès !', 'success');
+            closeFacturationModal();
+            refreshHonorairesUI();
+        }
+    } catch (error) {
+        showNotification('Erreur lors de l\'enregistrement: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function handleEnregistrerPaiement() {
+    const mode = document.getElementById('paiementMode').value;
+    const reference = document.getElementById('paiementReference').value.trim();
+    const montant = parseFloat(document.getElementById('paiementMontant').value);
+    const date = document.getElementById('paiementDate').value;
+    
+    // Validation
+    if (!montant || isNaN(montant) || montant <= 0) {
+        showNotification('Le montant doit être supérieur à 0', 'warning');
+        document.getElementById('paiementMontant').focus();
+        return;
+    }
+    
+    if (!validateDateInput({ target: document.getElementById('paiementDate') })) {
+        showNotification('La date est invalide (format jj/mm/aaaa)', 'warning');
+        document.getElementById('paiementDate').focus();
+        return;
+    }
+    
+    // Convertir la date en format YYYY-MM-DD
+    const [day, month, year] = date.split('/');
+    const dateFormatted = `${year}-${month}-${day}`;
+    
+    const paiementData = {
+        client_id: currentHonosClientId,
+        date: dateFormatted,
+        mode: mode,
+        ref: reference || '-',
+        montant: montant
+    };
+    
+    showLoading('Enregistrement du paiement...');
+    
+    try {
+        const result = await addPaiement(paiementData);
+        if (result) {
+            showNotification('Paiement enregistré avec succès !', 'success');
+            closePaiementModal();
+            refreshHonorairesUI();
+        }
+    } catch (error) {
+        showNotification('Erreur lors de l\'enregistrement: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// FONCTION UTILITAIRE - DATE DU JOUR FORMATÉE
+function getTodayFormatted() {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+// INITIALISATION AU CHARGEMENT DE LA PAGE
+document.addEventListener('DOMContentLoaded', function() {
+    initializeHonorairesModals();
+});
