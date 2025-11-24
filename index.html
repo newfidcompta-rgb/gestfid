@@ -183,13 +183,32 @@
         </div>
 
         <!-- Onglet Liste Clients -->
-        <div id="consulter" class="tab-content active">
-          <div class="header-actions" style="margin-bottom: 1rem;">
-            <div class="search-box">
-              <i class="fas fa-search"></i>
-              <input type="text" id="searchInput" placeholder="Rechercher un client...">
-            </div>
-          </div>
+<div id="consulter" class="tab-content active">
+  <div class="header-actions" style="margin-bottom: 1rem;">
+    <div style="display: flex; gap: 1rem; align-items: flex-end;">
+      <!-- Recherche existante -->
+      <div class="search-box" style="flex: 1;">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="Rechercher un client...">
+      </div>
+      
+      <!-- NOUVEAU FILTRE TYPE -->
+      <div style="width: 200px;">
+        <label for="filterClientType" style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+          Type de client
+        </label>
+        <select id="filterClientType" class="form-control" style="width: 100%;">
+          <option value="tous">Tous les types</option>
+          <option value="1">Personne morale</option>
+          <option value="2">Personne physique RNR/RNS</option>
+          <option value="3">Personne physique CPU</option>
+          <option value="4">Particulier</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Le reste de votre code table... -->
 
           <div class="clients-table-container">
             <table class="clients-table">
@@ -359,267 +378,302 @@
           </div>
         </div>
 
-        <!-- Onglet AJOUTER -->
-        <div id="ajouter" class="tab-content">
-          <div class="card">
-            <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
-              <h3>Nouveau Client</h3>
-            </div>
-            <div class="modal-body">
-              <form id="addClientForm">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addNom">Nom / Raison Sociale *</label>
-                    <input type="text" id="addNom" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="addIce">ICE *</label>
-                    <input type="text" id="addIce" required>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addDateCreation">Date de Création</label>
-                    <input type="date" id="addDateCreation">
-                  </div>
-                  <div class="form-group">
-                    <label for="addSiegeSocial">Siège Social</label>
-                    <input type="text" id="addSiegeSocial">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addVille">Ville</label>
-                    <input type="text" id="addVille">
-                  </div>
-                  <div class="form-group">
-                    <label for="addActivite">Activité</label>
-                    <input type="text" id="addActivite">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addIdentifiantFiscal">Identifiant Fiscal</label>
-                    <input type="text" id="addIdentifiantFiscal">
-                  </div>
-                  <div class="form-group">
-                    <label for="addTaxeProfessionnelle">Taxe Professionnelle</label>
-                    <input type="text" id="addTaxeProfessionnelle">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addRegistreCommerce">Registre de Commerce</label>
-                    <input type="text" id="addRegistreCommerce">
-                  </div>
-                  <div class="form-group">
-                    <label for="addCnss">CNSS</label>
-                    <input type="text" id="addCnss">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addRib">RIB</label>
-                    <input type="text" id="addRib">
-                  </div>
-                  <div class="form-group">
-                    <label for="addEmail">Email</label>
-                    <input type="email" id="addEmail">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addNomGerant">Nom du Gérant</label>
-                    <input type="text" id="addNomGerant">
-                  </div>
-                  <div class="form-group">
-                    <label for="addCinGerant">CIN du Gérant</label>
-                    <input type="text" id="addCinGerant">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addAdresseGerant">Adresse du Gérant</label>
-                    <input type="text" id="addAdresseGerant">
-                  </div>
-                  <div class="form-group">
-                    <label for="addDateNaissance">Date de Naissance</label>
-                    <input type="date" id="addDateNaissance">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="addContact">Contact</label>
-                    <input type="text" id="addContact">
-                  </div>
-                  <div class="form-group">
-                    <label for="addCodeClient">Code Client</label>
-                    <input type="text" id="addCodeClient">
-                  </div>
-                </div>
-
-                <div class="form-actions">
-                  <button type="reset" class="btn-secondary">Annuler</button>
-                  <button type="submit" class="btn-primary">Enregistrer le Client</button>
-                </div>
-              </form>
-            </div>
+<!-- Onglet AJOUTER -->
+<div id="ajouter" class="tab-content">
+  <div class="card">
+    <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+      <h3>Nouveau Client</h3>
+    </div>
+    <div class="modal-body">
+      <form id="addClientForm">
+        <!-- NOUVEAU : Sélection du type de client -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addClientType">Type de client *</label>
+            <select id="addClientType" class="form-control" required>
+              <option value="">Choisir un type...</option>
+              <option value="1">Personne morale</option>
+              <option value="2">Personne physique RNR/RNS</option>
+              <option value="3">Personne physique CPU</option>
+              <option value="4">Particulier</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <!-- Espace réservé pour alignement -->
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addNom">Nom / Raison Sociale *</label>
+            <input type="text" id="addNom" required>
+          </div>
+          <div class="form-group">
+            <label for="addIce">ICE *</label>
+            <input type="text" id="addIce" required>
           </div>
         </div>
 
-        <!-- Onglet MODIFIER -->
-        <div id="modifier" class="tab-content">
-          <div class="card">
-            <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
-              <h3>Modifier un Client</h3>
-            </div>
-            
-            <!-- Sélection du client à modifier -->
-            <div class="form-row" style="margin-bottom: 2rem;">
-              <div class="form-group" style="flex: 1;">
-                <label for="editClientSelect">Sélectionner le client à modifier</label>
-                <div class="custom-select-wrapper">
-                  <div class="custom-select" id="editClientSelect">
-                    <div class="select-selected">Choisir un client...</div>
-                    <div class="select-items">
-                      <div class="select-search">
-                        <i class="fas fa-search"></i>
-                        <input type="text" placeholder="Rechercher un client..." class="select-search-input">
-                      </div>
-                      <div class="select-options" id="clientOptionsEdit">
-                        <!-- Les options seront ajoutées dynamiquement -->
-                      </div>
-                    </div>
-                  </div>
-                </div>
+        
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addDateCreation">Date de Création</label>
+            <input type="date" id="addDateCreation">
+          </div>
+          <div class="form-group">
+            <label for="addSiegeSocial">Siège Social</label>
+            <input type="text" id="addSiegeSocial">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addVille">Ville</label>
+            <input type="text" id="addVille">
+          </div>
+          <div class="form-group">
+            <label for="addActivite">Activité</label>
+            <input type="text" id="addActivite">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addIdentifiantFiscal">Identifiant Fiscal</label>
+            <input type="text" id="addIdentifiantFiscal">
+          </div>
+          <div class="form-group">
+            <label for="addTaxeProfessionnelle">Taxe Professionnelle</label>
+            <input type="text" id="addTaxeProfessionnelle">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addRegistreCommerce">Registre de Commerce</label>
+            <input type="text" id="addRegistreCommerce">
+          </div>
+          <div class="form-group">
+            <label for="addCnss">CNSS</label>
+            <input type="text" id="addCnss">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addRib">RIB</label>
+            <input type="text" id="addRib">
+          </div>
+          <div class="form-group">
+            <label for="addEmail">Email</label>
+            <input type="email" id="addEmail">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addNomGerant">Nom du Gérant</label>
+            <input type="text" id="addNomGerant">
+          </div>
+          <div class="form-group">
+            <label for="addCinGerant">CIN du Gérant</label>
+            <input type="text" id="addCinGerant">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addAdresseGerant">Adresse du Gérant</label>
+            <input type="text" id="addAdresseGerant">
+          </div>
+          <div class="form-group">
+            <label for="addDateNaissance">Date de Naissance</label>
+            <input type="date" id="addDateNaissance">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="addContact">Contact</label>
+            <input type="text" id="addContact">
+          </div>
+          <div class="form-group">
+            <label for="addCodeClient">Code Client</label>
+            <input type="text" id="addCodeClient">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="reset" class="btn-secondary">Annuler</button>
+          <button type="submit" class="btn-primary">Enregistrer le Client</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- Onglet MODIFIER -->
+<div id="modifier" class="tab-content">
+  <div class="card">
+    <div class="modal-header" style="border-bottom: 1px solid var(--border-color); margin-bottom: 2rem;">
+      <h3>Modifier un Client</h3>
+    </div>
+    
+    <!-- Sélection du client à modifier -->
+    <div class="form-row" style="margin-bottom: 2rem;">
+      <div class="form-group" style="flex: 1;">
+        <label for="editClientSelect">Sélectionner le client à modifier</label>
+        <div class="custom-select-wrapper">
+          <div class="custom-select" id="editClientSelect">
+            <div class="select-selected">Choisir un client...</div>
+            <div class="select-items">
+              <div class="select-search">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Rechercher un client..." class="select-search-input">
+              </div>
+              <div class="select-options" id="clientOptionsEdit">
+                <!-- Les options seront ajoutées dynamiquement -->
               </div>
             </div>
-
-            <!-- Formulaire de modification -->
-            <div id="editFormContainer" style="display: none;">
-              <form id="editClientForm">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editNom">Nom / Raison Sociale *</label>
-                    <input type="text" id="editNom" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="editIce">ICE *</label>
-                    <input type="text" id="editIce" required>
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editDateCreation">Date de Création</label>
-                    <input type="date" id="editDateCreation">
-                  </div>
-                  <div class="form-group">
-                    <label for="editSiegeSocial">Siège Social</label>
-                    <input type="text" id="editSiegeSocial">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editVille">Ville</label>
-                    <input type="text" id="editVille">
-                  </div>
-                  <div class="form-group">
-                    <label for="editActivite">Activité</label>
-                    <input type="text" id="editActivite">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editIdentifiantFiscal">Identifiant Fiscal</label>
-                    <input type="text" id="editIdentifiantFiscal">
-                  </div>
-                  <div class="form-group">
-                    <label for="editTaxeProfessionnelle">Taxe Professionnelle</label>
-                    <input type="text" id="editTaxeProfessionnelle">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editRegistreCommerce">Registre de Commerce</label>
-                    <input type="text" id="editRegistreCommerce">
-                  </div>
-                  <div class="form-group">
-                    <label for="editCnss">CNSS</label>
-                    <input type="text" id="editCnss">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editRib">RIB</label>
-                    <input type="text" id="editRib">
-                  </div>
-                  <div class="form-group">
-                    <label for="editEmail">Email</label>
-                    <input type="email" id="editEmail">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editNomGerant">Nom du Gérant</label>
-                    <input type="text" id="editNomGerant">
-                  </div>
-                  <div class="form-group">
-                    <label for="editCinGerant">CIN du Gérant</label>
-                    <input type="text" id="editCinGerant">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editAdresseGerant">Adresse du Gérant</label>
-                    <input type="text" id="editAdresseGerant">
-                  </div>
-                  <div class="form-group">
-                    <label for="editDateNaissance">Date de Naissance</label>
-                    <input type="date" id="editDateNaissance">
-                  </div>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="editContact">Contact</label>
-                    <input type="text" id="editContact">
-                  </div>
-                  <div class="form-group">
-                    <label for="editCodeClient">Code Client</label>
-                    <input type="text" id="editCodeClient">
-                  </div>
-                </div>
-
-                <div class="form-actions">
-                  <button type="button" class="btn-secondary" onclick="cancelEdit()">Annuler</button>
-                  <button type="submit" class="btn-primary">Mettre à jour le Client</button>
-                </div>
-              </form>
-            </div>
-            
-            <!-- Message quand aucun client sélectionné -->
-            <div id="editPlaceholder" class="no-data" style="text-align: center; padding: 3rem;">
-              <i class="fas fa-user-edit" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
-              <h3>Sélectionnez un client</h3>
-              <p>Veuillez choisir un client dans la liste déroulante pour modifier ses informations</p>
-            </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Formulaire de modification -->
+    <div id="editFormContainer" style="display: none;">
+      <form id="editClientForm">
+        <!-- NOUVEAU : Sélection du type de client -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editClientType">Type de client *</label>
+            <select id="editClientType" class="form-control" required>
+              <option value="">Choisir un type...</option>
+              <option value="1">Personne morale</option>
+              <option value="2">Personne physique RNR/RNS</option>
+              <option value="3">Personne physique CPU</option>
+              <option value="4">Particulier</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <!-- Espace réservé pour alignement -->
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editNom">Nom / Raison Sociale *</label>
+            <input type="text" id="editNom" required>
+          </div>
+          <div class="form-group">
+            <label for="editIce">ICE *</label>
+            <input type="text" id="editIce" required>
+          </div>
+        </div>
+
+        
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editDateCreation">Date de Création</label>
+            <input type="date" id="editDateCreation">
+          </div>
+          <div class="form-group">
+            <label for="editSiegeSocial">Siège Social</label>
+            <input type="text" id="editSiegeSocial">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editVille">Ville</label>
+            <input type="text" id="editVille">
+          </div>
+          <div class="form-group">
+            <label for="editActivite">Activité</label>
+            <input type="text" id="editActivite">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editIdentifiantFiscal">Identifiant Fiscal</label>
+            <input type="text" id="editIdentifiantFiscal">
+          </div>
+          <div class="form-group">
+            <label for="editTaxeProfessionnelle">Taxe Professionnelle</label>
+            <input type="text" id="editTaxeProfessionnelle">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editRegistreCommerce">Registre de Commerce</label>
+            <input type="text" id="editRegistreCommerce">
+          </div>
+          <div class="form-group">
+            <label for="editCnss">CNSS</label>
+            <input type="text" id="editCnss">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editRib">RIB</label>
+            <input type="text" id="editRib">
+          </div>
+          <div class="form-group">
+            <label for="editEmail">Email</label>
+            <input type="email" id="editEmail">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editNomGerant">Nom du Gérant</label>
+            <input type="text" id="editNomGerant">
+          </div>
+          <div class="form-group">
+            <label for="editCinGerant">CIN du Gérant</label>
+            <input type="text" id="editCinGerant">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editAdresseGerant">Adresse du Gérant</label>
+            <input type="text" id="editAdresseGerant">
+          </div>
+          <div class="form-group">
+            <label for="editDateNaissance">Date de Naissance</label>
+            <input type="date" id="editDateNaissance">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="editContact">Contact</label>
+            <input type="text" id="editContact">
+          </div>
+          <div class="form-group">
+            <label for="editCodeClient">Code Client</label>
+            <input type="text" id="editCodeClient">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="cancelEdit()">Annuler</button>
+          <button type="submit" class="btn-primary">Mettre à jour le Client</button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Message quand aucun client sélectionné -->
+    <div id="editPlaceholder" class="no-data" style="text-align: center; padding: 3rem;">
+      <i class="fas fa-user-edit" style="font-size: 3rem; color: var(--text-secondary); margin-bottom: 1rem;"></i>
+      <h3>Sélectionnez un client</h3>
+      <p>Veuillez choisir un client dans la liste déroulante pour modifier ses informations</p>
+    </div>
+  </div>
+</div>
 
         <!-- Onglet ARCHIVES -->
         <div id="archives" class="tab-content">

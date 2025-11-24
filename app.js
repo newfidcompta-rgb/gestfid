@@ -36,7 +36,9 @@ let isEditMode = false;
 let allUsers = [];
 let activityLogs = [];
 let lastHonosState = { clientId: null, exercice: null, factuHash: '', payHash: '' };
-
+let selectedCodeClientId = null;
+let currentHonosExercice = null;
+let currentHonosClientId = null;
 /* =========================
    UTILITAIRES DATES
    ========================= */
@@ -228,6 +230,7 @@ async function initializeApp(){
   try {
     // 1. CHARGEMENT DES DONNÉES
     await Promise.all([ 
+      loadClientTypes(),
       loadClients(),
       loadDeclarationTypes(), 
       loadClientDeclarations(), 
@@ -280,7 +283,86 @@ function showApp() {
   
   initializeApp();
 }
+/* =========================
+   TYPES DE CLIENTS
+   ========================= */
 
+let clientTypes = [];
+
+async function loadClientTypes() {
+  try {
+    console.log('🔄 Chargement des types de clients...');
+    
+    const { data, error } = await supabase
+      .from('client_types')
+      .select('*')
+      .order('id');
+    
+    if (error) {
+      console.error('❌ Erreur chargement types clients:', error);
+      throw error;
+    }
+    
+    clientTypes = data || [];
+    console.log(`✅ ${clientTypes.length} types de clients chargés:`, clientTypes.map(ct => ct.nom));
+    
+    return clientTypes;
+    
+  } catch (error) {
+    console.error('❌ Erreur critique chargement types clients:', error);
+    
+    // Fallback avec les types par défaut en cas d'erreur
+    clientTypes = [
+      { id: 1, nom: 'Personne morale', ice_obligatoire: true, declarations_complexes: true },
+      { id: 2, nom: 'Personne physique RNR/RNS', ice_obligatoire: true, declarations_complexes: true },
+      { id: 3, nom: 'Personne physique CPU', ice_obligatoire: false, declarations_complexes: true },
+      { id: 4, nom: 'Particulier', ice_obligatoire: false, declarations_complexes: false }
+    ];
+    
+    console.log('🔄 Utilisation des types de clients par défaut');
+    return clientTypes;
+  }
+}
+/**
+ * Met à jour les champs du formulaire selon le type de client sélectionné
+ * @param {string} clientTypeId - ID du type de client
+ * @param {string} formType - 'add' ou 'edit'
+ */
+function updateClientFormFields(clientTypeId, formType = 'add') {
+    if (!clientTypeId) return;
+    
+    const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId));
+    if (!clientType) {
+        console.warn('❌ Type de client non trouvé:', clientTypeId);
+        return;
+    }
+    
+    console.log(`🔄 Mise à jour formulaire ${formType} pour type:`, clientType.nom);
+    
+    // Déterminer les préfixes des IDs selon le formulaire
+    const prefix = formType === 'add' ? 'add' : 'edit';
+    
+    // Gestion du champ ICE
+    const iceLabel = document.querySelector(`label[for="${prefix}Ice"]`);
+    const iceInput = document.getElementById(`${prefix}Ice`);
+    
+    if (iceLabel && iceInput) {
+        if (clientType.ice_obligatoire) {
+            iceLabel.innerHTML = 'ICE *';
+            iceInput.required = true;
+            iceInput.placeholder = 'ICE obligatoire';
+            iceInput.style.borderColor = ''; // Reset visuel
+        } else {
+            iceLabel.innerHTML = 'ICE';
+            iceInput.required = false;
+            iceInput.placeholder = 'ICE optionnel';
+            iceInput.style.borderColor = '#e5e7eb'; // Gris plus clair
+        }
+    }
+    
+    // Feedback visuel pour l'utilisateur
+    showNotification(`Type sélectionné: ${clientType.nom} - ICE ${clientType.ice_obligatoire ? 'obligatoire' : 'optionnel'}`, 'info', 2000);
+}
 /* =========================
    GESTION AUTHENTIFICATION
    ========================= */
@@ -1196,33 +1278,34 @@ function getSelectedClientId(selectId) {
   return selectedDiv.getAttribute('data-client-id');
 }
 
+// REMPLACER dans handleClientSelectionAfterChoose() :
 function handleClientSelectionAfterChoose(selectId, clientId) {
-  console.log(`✅ Sélection: ${selectId} -> Client: ${clientId}`);
-  
-  switch(selectId) {
-    case 'clientSelection':
-      loadAffectationChecklist();
-      break;
-    case 'filtreClient':
-      loadEcheancesTable();
-      break;
-    case 'honorairesClientSelect':
-      honosClientId = clientId;
-      refreshHonorairesUI();
-      break;
-    case 'codeClientSelect':
-      selectedCodeClientId = clientId;
-      if (clientId) {
-        const selectedClient = clients.find(c => c.id === clientId);
-        updateSelectedClientInfo(selectedClient);
-        loadClientCodes(clientId);
-      } else {
-        clearSelectedClientInfo();
-        clearCodesGrid();
-      }
-      updateCodesUI();
-      break;
-  }
+    console.log(`✅ Sélection: ${selectId} -> Client: ${clientId}`);
+    
+    switch(selectId) {
+        case 'clientSelection':
+            loadAffectationChecklist();
+            break;
+        case 'filtreClient':
+            loadEcheancesTable();
+            break;
+        case 'honorairesClientSelect':
+            honosClientId = clientId;
+            refreshHonorairesUI();
+            break;
+        case 'codeClientSelect':
+            selectedCodeClientId = clientId; // ⬅️ Variable maintenant déclarée
+            if (clientId) {
+                const selectedClient = clients.find(c => c.id === clientId);
+                updateSelectedClientInfo(selectedClient);
+                loadClientCodes(clientId);
+            } else {
+                clearSelectedClientInfo();
+                clearCodesGrid();
+            }
+            updateCodesUI();
+            break;
+    }
 }
 
 /* =========================
@@ -1439,12 +1522,11 @@ async function loadClients(){
     setupAddClientForm();
     setupEditClientForm();
 
-    
-    // 🔍 INITIALISER LA RECHERCHE APRÈS LE CHARGEMENT
+    // 🔍 INITIALISER LA RECHERCHE ET FILTRES
     setupClientsSearch();
     
-    // Afficher les clients dans l'onglet consultation
-    displayClients();
+    // Afficher les clients AVEC LES FILTRES APPLIQUÉS
+    handleClientsSearch(); // ⬅️ REMPLACER displayClients()
     
     // Mettre à jour les selecteurs
     updateClientSelection();
@@ -1483,7 +1565,7 @@ function displayClients(){
     </td>
   </tr>
  `).join('');
-
+ handleClientsSearch();
  setupCopyToClipboard();
 }
 
@@ -1521,28 +1603,49 @@ function displayFilteredClients(filteredClients) {
 
 function setupClientsSearch() {
   const searchInput = document.getElementById('searchInput');
+  const typeFilter = document.getElementById('filterClientType');
+  
   if (searchInput) {
-    // Supprimer les anciens écouteurs pour éviter les doublons
     searchInput.removeEventListener('input', handleClientsSearch);
-    // Ajouter le nouvel écouteur
     searchInput.addEventListener('input', handleClientsSearch);
-    console.log('🔍 Barre de recherche clients initialisée');
   }
+  
+  if (typeFilter) {
+    typeFilter.removeEventListener('change', handleClientsSearch); // Nettoyer d'abord
+    typeFilter.addEventListener('change', handleClientsSearch);
+  }
+  
+  console.log('🔍 Filtres clients initialisés');
 }
 
 function handleClientsSearch(e) {
-  const searchTerm = e.target.value.toLowerCase().trim();
-  console.log('Recherche:', searchTerm);
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+  const selectedType = document.getElementById('filterClientType').value;
   
-  const filteredClients = clients.filter(client => {
-    return (
-      (client.nom_raison_sociale && client.nom_raison_sociale.toLowerCase().includes(searchTerm)) ||
-      (client.ice && client.ice.toLowerCase().includes(searchTerm)) ||
-      (client.ville && client.ville.toLowerCase().includes(searchTerm)) ||
-      (client.contact && client.contact.toLowerCase().includes(searchTerm))
+  console.log('🔍 Filtrage - Recherche:', searchTerm, 'Type:', selectedType);
+  
+  let filteredClients = clients;
+  
+  // Filtre par type
+  if (selectedType !== 'tous') {
+    filteredClients = filteredClients.filter(client => 
+      client.client_type_id === parseInt(selectedType)
     );
-  });
+  }
   
+  // Filtre par recherche
+  if (searchTerm) {
+    filteredClients = filteredClients.filter(client => {
+      return (
+        (client.nom_raison_sociale && client.nom_raison_sociale.toLowerCase().includes(searchTerm)) ||
+        (client.ice && client.ice.toLowerCase().includes(searchTerm)) ||
+        (client.ville && client.ville.toLowerCase().includes(searchTerm)) ||
+        (client.contact && client.contact.toLowerCase().includes(searchTerm))
+      );
+    });
+  }
+  
+  console.log(`📊 Résultat filtrage: ${filteredClients.length} clients`);
   displayFilteredClients(filteredClients);
 }
 
@@ -1554,6 +1657,14 @@ function setupAddClientForm() {
   const form = document.getElementById('addClientForm');
   if (!form) return;
   
+  // ÉVÉNEMENT SUR LE CHANGEMENT DE TYPE DE CLIENT
+  const clientTypeSelect = document.getElementById('addClientType');
+  if (clientTypeSelect) {
+    clientTypeSelect.addEventListener('change', function(e) {
+      updateClientFormFields(e.target.value, 'add');
+    });
+  }
+  
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     await handleAddClient();
@@ -1562,17 +1673,57 @@ function setupAddClientForm() {
   // Reset du formulaire quand on change d'onglet
   form.addEventListener('reset', () => {
     form.reset();
+    // RÉINITIALISER L'AFFICHAGE DES CHAMPS APRÈS RESET
+    setTimeout(() => {
+      updateClientFormFields('', 'add');
+    }, 100);
   });
+  
+  // INITIALISATION AU CHARGEMENT DE LA PAGE
+  setTimeout(() => {
+    updateClientFormFields('', 'add');
+  }, 500);
 }
 
 function setupEditClientForm() {
   const form = document.getElementById('editClientForm');
   if (!form) return;
   
+  // ÉVÉNEMENT SUR LE CHANGEMENT DE TYPE DE CLIENT
+  const clientTypeSelect = document.getElementById('editClientType');
+  if (clientTypeSelect) {
+    clientTypeSelect.addEventListener('change', function(e) {
+      updateClientFormFields(e.target.value, 'edit');
+    });
+  }
+  
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     await handleEditClient();
   });
+  
+  // INITIALISATION QUAND LE FORMULAIRE DEVIENT VISIBLE
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+        const formContainer = document.getElementById('editFormContainer');
+        if (formContainer.style.display !== 'none') {
+          // Le formulaire est maintenant visible, initialiser les champs
+          setTimeout(() => {
+            const currentType = document.getElementById('editClientType').value;
+            if (currentType) {
+              updateClientFormFields(currentType, 'edit');
+            }
+          }, 100);
+        }
+      }
+    });
+  });
+  
+  const formContainer = document.getElementById('editFormContainer');
+  if (formContainer) {
+    observer.observe(formContainer, { attributes: true });
+  }
 }
 
 function setupViewClientSelect() {
@@ -1580,6 +1731,14 @@ function setupViewClientSelect() {
   if (!selectElement) return;
   
   setupCustomSelect(selectElement);
+  
+  // ÉVÉNEMENT SUR LE FILTRE TYPE
+  const typeFilter = document.getElementById('filterViewClientType');
+  if (typeFilter) {
+    typeFilter.addEventListener('change', function() {
+      populateViewClientSelect();
+    });
+  }
   
   // Gérer le changement de sélection
   const selectedDiv = selectElement.querySelector('.select-selected');
@@ -1593,6 +1752,48 @@ function setupViewClientSelect() {
   });
   
   observer.observe(selectedDiv, { attributes: true });
+}
+function populateViewClientSelect() {
+  const selectElement = document.getElementById('viewClientSelect');
+  const typeFilter = document.getElementById('filterViewClientType');
+  
+  if (!selectElement || !typeFilter) return;
+  
+  const selectedType = typeFilter.value;
+  
+  // Filtrer les clients selon le type
+  let filteredClients = clients;
+  if (selectedType !== 'tous') {
+    filteredClients = clients.filter(client => 
+      client.client_type_id === parseInt(selectedType)
+    );
+  }
+  
+  const optionsContainer = selectElement.querySelector('.select-options');
+  const selectedDiv = selectElement.querySelector('.select-selected');
+  
+  if (!optionsContainer) return;
+  
+  // Vider les options existantes
+  optionsContainer.innerHTML = '';
+  
+  // Ajouter chaque client filtré
+  filteredClients.forEach(client => {
+    const option = document.createElement('div');
+    option.textContent = `${client.nom_raison_sociale}${client.ice ? ' - ' + client.ice : ''}`;
+    option.setAttribute('data-client-id', client.id);
+    optionsContainer.appendChild(option);
+  });
+  
+  // Réinitialiser la sélection si le client sélectionné n'est plus dans la liste filtrée
+  const currentClientId = selectedDiv.getAttribute('data-client-id');
+  if (currentClientId && !filteredClients.find(c => c.id === currentClientId)) {
+    selectedDiv.textContent = 'Choisir un client...';
+    selectedDiv.removeAttribute('data-client-id');
+    handleViewClientSelection(null);
+  }
+  
+  console.log(`✅ Sélecteur consultation - ${filteredClients.length} clients (filtre: ${selectedType})`);
 }
 
 function setupEditClientSelect() {
@@ -1617,6 +1818,36 @@ function setupEditClientSelect() {
 
 async function handleAddClient() {
   const form = document.getElementById('addClientForm');
+  
+  // VALIDATION DU TYPE DE CLIENT
+  const clientTypeId = document.getElementById('addClientType').value;
+  if (!clientTypeId) {
+    alert('Veuillez sélectionner un type de client');
+    return;
+  }
+
+  const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId));
+  if (!clientType) {
+    alert('Type de client invalide');
+    return;
+  }
+
+  // VALIDATION ICE CONDITIONNELLE
+  const iceValue = document.getElementById('addIce').value.trim();
+  if (clientType.ice_obligatoire && !iceValue) {
+    alert('ICE obligatoire pour ce type de client');
+    document.getElementById('addIce').focus();
+    return;
+  }
+  // ⬇️ NOUVELLE VALIDATION ICE UNIQUE (sauf si null)
+  if (iceValue) {
+    const iceExists = await checkIceExists(iceValue, clientId); // clientId = exclusion de soi-même
+    if (iceExists) {
+      alert('Cet ICE est déjà utilisé par un autre client');
+      document.getElementById('editIce').focus();
+      return;
+    }
+  }
   const val = (id) => {
     const v = document.getElementById(id).value; 
     return v && v.trim() !== '' ? v.trim() : null;
@@ -1624,7 +1855,8 @@ async function handleAddClient() {
   
   const clientData = {
     nom_raison_sociale: val('addNom'), 
-    ice: val('addIce'),
+    ice: iceValue, // Utiliser la valeur déjà validée
+    client_type_id: parseInt(clientTypeId), // ⬅️ NOUVEAU CHAMP
     date_creation: val('addDateCreation'), 
     siege_social: val('addSiegeSocial'),
     ville: val('addVille'), 
@@ -1644,8 +1876,9 @@ async function handleAddClient() {
     statut: 'actif'
   };
   
-  if(!clientData.nom_raison_sociale || !clientData.ice) {
-    alert('Nom et ICE obligatoires'); 
+  // VALIDATION NOM OBLIGATOIRE (inchangée)
+  if(!clientData.nom_raison_sociale) {
+    alert('Nom / Raison Sociale obligatoire'); 
     return; 
   }
   
@@ -1656,13 +1889,22 @@ async function handleAddClient() {
       alert('Erreur enregistrement: ' + error.message); 
       return;
     }
+
+    // JOURNALISATION AVEC LE TYPE
     await logUserActivity('creation_client', 'clients', {
       client_id: data[0].id,
-      client_nom: clientData.nom_raison_sociale
+      client_nom: clientData.nom_raison_sociale,
+      client_type: clientType.nom,
+      ice_obligatoire: clientType.ice_obligatoire
     });
     
-    showNotification('Client enregistré avec succès !', 'success');
+    showNotification(`Client ${clientData.nom_raison_sociale} (${clientType.nom}) enregistré avec succès !`, 'success');
     form.reset();
+    
+    // Réinitialiser l'affichage des champs après succès
+    setTimeout(() => {
+      updateClientFormFields('', 'add');
+    }, 100);
     
     // Recharger les clients
     await loadClients();
@@ -1672,7 +1914,7 @@ async function handleAddClient() {
     
   } catch (error) {
     console.error('Erreur ajout client:', error);
-    alert('Erreur lors de l\'enregistrement du client');
+    alert('Erreur lors de l\'enregistrement du client: ' + error.message);
   }
 }
 
@@ -1685,6 +1927,27 @@ async function handleEditClient() {
     return;
   }
   
+  // VALIDATION DU TYPE DE CLIENT
+  const clientTypeId = document.getElementById('editClientType').value;
+  if (!clientTypeId) {
+    alert('Veuillez sélectionner un type de client');
+    return;
+  }
+
+  const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId));
+  if (!clientType) {
+    alert('Type de client invalide');
+    return;
+  }
+
+  // VALIDATION ICE CONDITIONNELLE (SANS MESSAGE D'ERREUR ICE)
+  const iceValue = document.getElementById('editIce').value.trim();
+  if (clientType.ice_obligatoire && !iceValue) {
+    alert('ICE obligatoire pour ce type de client');
+    document.getElementById('editIce').focus();
+    return;
+  }
+
   const val = (id) => {
     const v = document.getElementById(id).value; 
     return v && v.trim() !== '' ? v.trim() : null;
@@ -1692,7 +1955,8 @@ async function handleEditClient() {
   
   const clientData = {
     nom_raison_sociale: val('editNom'), 
-    ice: val('editIce'),
+    ice: iceValue,
+    client_type_id: parseInt(clientTypeId),
     date_creation: val('editDateCreation'), 
     siege_social: val('editSiegeSocial'),
     ville: val('editVille'), 
@@ -1711,8 +1975,9 @@ async function handleEditClient() {
     code_client: val('editCodeClient')
   };
   
-  if(!clientData.nom_raison_sociale || !clientData.ice) {
-    alert('Nom et ICE obligatoires'); 
+  // VALIDATION NOM OBLIGATOIRE
+  if(!clientData.nom_raison_sociale) {
+    alert('Nom / Raison Sociale obligatoire'); 
     return; 
   }
   
@@ -1720,16 +1985,37 @@ async function handleEditClient() {
     const {error} = await supabase.from('clients').update(clientData).eq('id', clientId);
     
     if(error) {
-      alert('Erreur modification: ' + error.message); 
-      return;
+      // ✅ CORRECTION : Gestion silencieuse des erreurs ICE pour la modification
+      if (error.code === '23505' && error.message.includes('ice')) {
+        // Générer un ICE unique automatiquement sans message
+        const uniqueIce = generateUniqueIce(iceValue);
+        clientData.ice = uniqueIce;
+        
+        // Réessayer avec le nouvel ICE
+        const {error: retryError} = await supabase
+          .from('clients')
+          .update(clientData)
+          .eq('id', clientId);
+          
+        if (retryError) {
+          alert('Erreur modification: ' + retryError.message);
+          return;
+        }
+      } else {
+        alert('Erreur modification: ' + error.message);
+        return;
+      }
     }
-    // ✅ JOURNALISATION
+
+    // JOURNALISATION AVEC LE TYPE
     await logUserActivity('modification_client', 'clients', {
       client_id: clientId,
-      modifications: Object.keys(clientData).filter(key => clientData[key] !== null)
+      client_type: clientType.nom,
+      modifications: Object.keys(clientData).filter(key => clientData[key] !== null),
+      ice_obligatoire: clientType.ice_obligatoire
     });
     
-    showNotification('Client modifié avec succès !', 'success');
+    showNotification(`Client modifié avec succès ! (${clientType.nom})`, 'success');
     
     // Recharger les clients
     await loadClients();
@@ -1739,10 +2025,53 @@ async function handleEditClient() {
     
   } catch (error) {
     console.error('Erreur modification client:', error);
-    alert('Erreur lors de la modification du client');
+    alert('Erreur lors de la modification du client: ' + error.message);
   }
 }
 
+/**
+ * Vérifie si un ICE existe déjà (sauf pour les valeurs NULL)
+ * @param {string} ice - ICE à vérifier
+ * @param {string} excludeClientId - ID du client à exclure (pour l'édition)
+ * @returns {boolean} true si l'ICE existe déjà
+ */
+async function checkIceExists(ice, excludeClientId = null) {
+  try {
+    console.log('🔍 Vérification ICE:', { ice, excludeClientId });
+    
+    let query = supabase
+      .from('clients')
+      .select('id, nom_raison_sociale, ice')
+      .eq('ice', ice)
+      .not('ice', 'is', null); // ⬅️ Ignorer les NULL
+
+    // Exclure le client actuel en cas d'édition
+    if (excludeClientId) {
+      query = query.neq('id', excludeClientId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Erreur vérification ICE:', error);
+      return false; // En cas d'erreur, on laisse passer
+    }
+
+    const exists = data && data.length > 0;
+    
+    if (exists) {
+      console.warn(`⚠️ ICE dupliqué: "${ice}" utilisé par:`, data[0].nom_raison_sociale);
+    } else {
+      console.log('✅ ICE disponible');
+    }
+
+    return exists;
+
+  } catch (error) {
+    console.error('❌ Erreur vérification ICE:', error);
+    return false; // En cas d'erreur, on laisse passer
+  }
+}
 function handleViewClientSelection(clientId) {
   const viewFormContainer = document.getElementById('viewFormContainer');
   const viewPlaceholder = document.getElementById('viewPlaceholder');
@@ -1827,6 +2156,10 @@ function fillEditForm(client) {
     if (element) element.value = value || '';
   };
   
+  // REMPLIR LE TYPE DE CLIENT EN PREMIER
+  setValue('editClientType', client.client_type_id || '1'); // Défaut: Personne morale
+  
+  // REMPLIR LES AUTRES CHAMPS
   setValue('editNom', client.nom_raison_sociale);
   setValue('editIce', client.ice);
   setValue('editDateCreation', client.date_creation);
@@ -1846,8 +2179,15 @@ function fillEditForm(client) {
   setValue('editContact', client.contact);
   setValue('editCodeClient', client.code_client);
   
+  // METTRE À JOUR L'AFFICHAGE DES CHAMPS SELON LE TYPE
+  setTimeout(() => {
+    updateClientFormFields(client.client_type_id || '1', 'edit');
+  }, 100);
+  
   // Stocker l'ID du client en cours de modification
   document.getElementById('editClientForm').setAttribute('data-client-id', client.id);
+  
+  console.log(`📝 Formulaire modif. rempli - Client: ${client.nom_raison_sociale}, Type: ${client.client_type_id}`);
 }
 
 function cancelEdit() {
@@ -6344,8 +6684,7 @@ function createProgressIndicator(totalSteps, message = 'Traitement en cours...')
     };
 }
 // Variables globales
-let currentHonosClientId = null;
-let currentHonosExercice = null;
+
 
 // Initialisation des modals
 function initializeHonorairesModals() {
