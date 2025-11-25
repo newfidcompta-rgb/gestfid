@@ -2936,7 +2936,11 @@ function initializeEcheancesDefaults() {
   if (typeSelect) {
     typeSelect.value = 'tous';
   }
-  
+  // 🔥 MODIFICATION : Afficher "En cours" par défaut au lieu de "Tous"
+const etatSelect = document.getElementById('filtreEtat');
+if (etatSelect) {
+    etatSelect.value = 'en_cours'; // Au lieu de 'tous'
+}
   // ✅ SIMPLE : Configurer les événements une seule fois
   setupEcheancesFilters();
   
