@@ -1839,15 +1839,17 @@ async function handleAddClient() {
     document.getElementById('addIce').focus();
     return;
   }
-  // ⬇️ NOUVELLE VALIDATION ICE UNIQUE (sauf si null)
-  if (iceValue) {
-    const iceExists = await checkIceExists(iceValue, clientId); // clientId = exclusion de soi-même
+
+  // VÉRIFICATION ICE EN DOUBLE (uniquement si ICE renseigné)
+  if (iceValue) {  // Seulement si ICE non vide
+    const iceExists = await checkIceExists(iceValue);
     if (iceExists) {
-      alert('Cet ICE est déjà utilisé par un autre client');
-      document.getElementById('editIce').focus();
-      return;
+        alert('❌ Cet ICE est déjà utilisé par un autre client');
+        document.getElementById('addIce').focus();
+        return;
     }
-  }
+    }
+
   const val = (id) => {
     const v = document.getElementById(id).value; 
     return v && v.trim() !== '' ? v.trim() : null;
@@ -1856,7 +1858,7 @@ async function handleAddClient() {
   const clientData = {
     nom_raison_sociale: val('addNom'), 
     ice: iceValue, // Utiliser la valeur déjà validée
-    client_type_id: parseInt(clientTypeId), // ⬅️ NOUVEAU CHAMP
+    client_type_id: parseInt(clientTypeId),
     date_creation: val('addDateCreation'), 
     siege_social: val('addSiegeSocial'),
     ville: val('addVille'), 
@@ -1876,7 +1878,7 @@ async function handleAddClient() {
     statut: 'actif'
   };
   
-  // VALIDATION NOM OBLIGATOIRE (inchangée)
+  // VALIDATION NOM OBLIGATOIRE
   if(!clientData.nom_raison_sociale) {
     alert('Nom / Raison Sociale obligatoire'); 
     return; 
@@ -1940,7 +1942,7 @@ async function handleEditClient() {
     return;
   }
 
-  // VALIDATION ICE CONDITIONNELLE (SANS MESSAGE D'ERREUR ICE)
+  // VALIDATION ICE CONDITIONNELLE
   const iceValue = document.getElementById('editIce').value.trim();
   if (clientType.ice_obligatoire && !iceValue) {
     alert('ICE obligatoire pour ce type de client');
@@ -1985,26 +1987,14 @@ async function handleEditClient() {
     const {error} = await supabase.from('clients').update(clientData).eq('id', clientId);
     
     if(error) {
-      // ✅ CORRECTION : Gestion silencieuse des erreurs ICE pour la modification
+      // Gestion spécifique de l'erreur ICE en double
       if (error.code === '23505' && error.message.includes('ice')) {
-        // Générer un ICE unique automatiquement sans message
-        const uniqueIce = generateUniqueIce(iceValue);
-        clientData.ice = uniqueIce;
-        
-        // Réessayer avec le nouvel ICE
-        const {error: retryError} = await supabase
-          .from('clients')
-          .update(clientData)
-          .eq('id', clientId);
-          
-        if (retryError) {
-          alert('Erreur modification: ' + retryError.message);
-          return;
-        }
+        alert('❌ Cet ICE est déjà utilisé par un autre client');
+        document.getElementById('editIce').focus();
       } else {
         alert('Erreur modification: ' + error.message);
-        return;
       }
+      return;
     }
 
     // JOURNALISATION AVEC LE TYPE
@@ -2036,41 +2026,27 @@ async function handleEditClient() {
  * @returns {boolean} true si l'ICE existe déjà
  */
 async function checkIceExists(ice, excludeClientId = null) {
-  try {
-    console.log('🔍 Vérification ICE:', { ice, excludeClientId });
-    
-    let query = supabase
-      .from('clients')
-      .select('id, nom_raison_sociale, ice')
-      .eq('ice', ice)
-      .not('ice', 'is', null); // ⬅️ Ignorer les NULL
+    try {
+        let query = supabase
+            .from('clients')
+            .select('id, nom_raison_sociale, ice')
+            .eq('ice', ice)
+            .not('ice', 'is', null);
 
-    // Exclure le client actuel en cas d'édition
-    if (excludeClientId) {
-      query = query.neq('id', excludeClientId);
+        if (excludeClientId) {
+            query = query.neq('id', excludeClientId);
+        }
+
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        
+        return data && data.length > 0;
+        
+    } catch (error) {
+        console.error('Erreur vérification ICE:', error);
+        return false;
     }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('❌ Erreur vérification ICE:', error);
-      return false; // En cas d'erreur, on laisse passer
-    }
-
-    const exists = data && data.length > 0;
-    
-    if (exists) {
-      console.warn(`⚠️ ICE dupliqué: "${ice}" utilisé par:`, data[0].nom_raison_sociale);
-    } else {
-      console.log('✅ ICE disponible');
-    }
-
-    return exists;
-
-  } catch (error) {
-    console.error('❌ Erreur vérification ICE:', error);
-    return false; // En cas d'erreur, on laisse passer
-  }
 }
 function handleViewClientSelection(clientId) {
   const viewFormContainer = document.getElementById('viewFormContainer');
@@ -6270,7 +6246,8 @@ function debounce(func, wait) {
    ========================= */
 
 function showNotification(message, type = 'info', duration = 5000) {
-    // Créer ou réutiliser le container de notifications
+    console.trace('Notification appelée:', message); // ← Ajoutez cette ligne
+  // Créer ou réutiliser le container de notifications
     let container = document.getElementById('notification-container');
     if (!container) {
         container = document.createElement('div');
