@@ -230,7 +230,7 @@ async function initializeApp(){
   try {
     // 1. CHARGEMENT DES DONNÉES
     await Promise.all([ 
-      loadClientTypes(),
+      loadClientTypes(), // ✅ IMPORTANT : Charger les types avant tout
       loadClients(),
       loadDeclarationTypes(), 
       loadClientDeclarations(), 
@@ -240,12 +240,20 @@ async function initializeApp(){
     ]);
     
     // 2. CONFIGURATION DE L'INTERFACE (selon le rôle)
-    setupNav(); // ← Va masquer les pages selon le rôle
+    setupNav();
     setupDeclarationsTabs();
     setupGlobalMenus();
     setupHonoraires();
     initializeCustomSelects();
     initializeEcheancesDefaults();
+    
+    // ✅ NOUVEAU : Vérifier que les types clients sont chargés
+    if (clientTypes.length === 0) {
+      console.warn('⚠️ Types clients non chargés, rechargement...');
+      await loadClientTypes();
+    }
+    
+    console.log(`✅ ${clientTypes.length} types de clients disponibles:`, clientTypes.map(ct => ct.nom));
     
     // INITIALISER SEULEMENT SI ADMIN
     if (currentUser && currentUser.role === 'admin') {
@@ -3218,7 +3226,60 @@ function loadAffectationChecklist(clientId = null){
 
   const declAffect = clientDeclarations.filter(cd => cd.client_id === targetClientId && cd.annee_comptable == annee);
   
-  // ✅ NOUVELLE VERSION : Filtrage direct par type_declaration
+  // ✅ LOGIQUE AMÉLIORÉE : Gestion CM + Proposition N-1
+  let declarationsAvecCM = [...declAffect];
+  let showN1Proposal = false;
+  let showNPlus1Alert = false;
+
+  // 1. Vérifier condition Cotisation Minimale pour N
+  const conditionCM = checkCotisationMinimaleCondition(targetClientId, annee);
+  
+  // 2. Vérifier si proposition N-1 est possible (CONDITIONS CORRIGÉES)
+  const declarationsN1 = getDeclarationsAnneePrecedente(targetClientId, annee);
+  const hasDeclarationsN1 = declarationsN1.length > 0;
+  const hasDeclarationsN = declAffect.length > 0;
+  
+  // ✅ NOUVELLE CONDITION : Seulement si N est vide ET N-1 est rempli
+  if (hasDeclarationsN1 && !hasDeclarationsN) {
+    showN1Proposal = true;
+    console.log(`📋 Proposition N-1 activée: ${declarationsN1.length} déclarations en N-1, 0 en N`);
+  }
+  
+  /// 3. Vérifier alerte CM CETTE ANNÉE (uniquement l'année où ça devient obligatoire)
+  const conditionCMCetteAnnee = checkCotisationMinimaleCondition(targetClientId, annee);
+  if (conditionCMCetteAnnee) {
+  showNPlus1Alert = true;
+  }
+   
+  // ✅ GÉNÉRATION DE LA CHECKLIST (toujours afficher d'abord)
+  generateChecklistHTML(container, declarationsAvecCM, conditionCM, annee);
+  
+  // ✅ PROPOSITION N-1 APRÈS un délai pour laisser la checklist s'afficher
+if (showN1Proposal) {
+  setTimeout(() => {
+    // Vérifier que la checklist est bien affichée avant de proposer
+    const checklistVisible = container.querySelector('.category-accordion') !== null;
+    
+    if (checklistVisible) {
+  console.log('✅ Checklist affichée, proposition N-1 lancée');
+  showProposalDeclarationsN1(targetClientId, annee, declarationsN1, showNPlus1Alert);
+} else {
+  console.log('❌ Checklist non affichée, report proposition N-1');
+  // Réessayer après 1 seconde
+  setTimeout(() => {
+    showProposalDeclarationsN1(targetClientId, annee, declarationsN1, showNPlus1Alert);
+  }, 1000);
+}
+  }, 800);
+}
+
+  // 4. Alerte CM N+1 sera intégrée dans la proposition N-1 si nécessaire
+  
+  console.log('✅ Checklist chargée - CM:', conditionCM, 'N-1:', showN1Proposal);
+}
+
+// ✅ NOUVELLE FONCTION : Génération de la checklist
+function generateChecklistHTML(container, declarationsAvecCM, conditionCM, annee) {
   const sections = [
     {
       title: 'CNSS',
@@ -3273,11 +3334,28 @@ function loadAffectationChecklist(clientId = null){
     if(!items.length) return '';
     
     const total = items.length;
-    const nbCochees = items.filter(decl => declAffect.some(cd => cd.declaration_type_id === decl.id)).length;
+    
+    let nbCochees = items.filter(decl => {
+      const estAffectee = declarationsAvecCM.some(cd => cd.declaration_type_id === decl.id);
+      
+      if (conditionCM && isCotisationMinimaleDeclaration(decl)) {
+        console.log(`✅ CM Auto-coche: ${decl.nom_template}`);
+        return true;
+      }
+      
+      return estAffectee;
+    }).length;
+    
     const all = nbCochees === total, some = nbCochees > 0 && nbCochees < total;
     
     const itemsHtml = items.map(decl => {
-      const checked = declAffect.some(cd => cd.declaration_type_id === decl.id);
+      let checked = declarationsAvecCM.some(cd => cd.declaration_type_id === decl.id);
+      
+      if (conditionCM && isCotisationMinimaleDeclaration(decl)) {
+        checked = true;
+        console.log(`✅ CM Forcée: ${decl.nom_template}`);
+      }
+      
       const d1 = calculerDateReellePourDecl(decl, decl.date_debut_template, annee);
       const d2 = calculerDateReellePourDecl(decl, decl.date_fin_template, annee);
       
@@ -3320,15 +3398,174 @@ function loadAffectationChecklist(clientId = null){
 
   container.innerHTML = html || '<div class="no-data">Aucune déclaration disponible</div>';
   
-  // Initialiser les accordéons
   initializeAccordions();
-  // Gérer les cases à cocher
   setupCheckboxHandlers(container);
-  // Initialiser le bouton imprimer
   updatePrintButton();
-  
-  console.log('✅ Checklist chargée avec filtrage par type_declaration');
 }
+
+function showProposalDeclarationsN1(clientId, exercice, declarationsN1, showCMNPlus1Alert = false) {
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return;
+  
+  const exercicePrecedent = (parseInt(exercice) - 1).toString();
+  const exerciceNPlus1 = (parseInt(exercice) + 1).toString();
+  
+  let message = `
+    <div style="text-align: left;">
+      <p><strong>${client.nom_raison_sociale}</strong> avait <strong>${declarationsN1.length} déclaration(s)</strong> en <strong>${exercicePrecedent}</strong>.</p>
+      <p>Souhaitez-vous reporter automatiquement ces déclarations pour <strong>${exercice}</strong> ?</p>
+  `;
+  
+  // ✅ INTÉGRATION ALERTE CM N+1
+  if (showCMNPlus1Alert) {
+    message += `
+      <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 0.75rem; margin: 1rem 0; border-radius: 4px;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>
+          <strong>Information importante :</strong>
+        </div>
+        <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+          La cotisation minimale 3000 devient obligatoire pour ce client en <strong>${exercice}</strong>
+        </div>
+      </div>
+    `;
+  }
+  
+  message += `
+      <p style="color: #6b7280; font-size: 0.875rem; margin-top: 1rem;">
+        <i class="fas fa-info-circle"></i> Les déclarations seront cochées automatiquement.
+      </p>
+    </div>
+  `;
+  
+  showConfirmationDialog(
+    `Reporter les déclarations de ${exercicePrecedent} vers ${exercice} ?`,
+    message,
+    'info'
+  ).then(confirmed => {
+    if (confirmed) {
+      console.log(`✅ Utilisateur confirme report ${exercicePrecedent} → ${exercice}`);
+      applyDeclarationsFromN1(clientId, exercice, declarationsN1);
+    } else {
+      console.log(`❌ Utilisateur refuse report ${exercicePrecedent} → ${exercice}`);
+    }
+  });
+}
+
+function applyDeclarationsFromN1(clientId, exercice, declarationsN1) {
+  console.log(`🔄 Application déclarations N-1 → N: ${declarationsN1.length} déclarations`);
+  
+  // Mettre à jour les données locales
+  declarationsN1.forEach(declN1 => {
+    const existeDeja = clientDeclarations.some(cd => 
+      cd.client_id === clientId && 
+      cd.declaration_type_id === declN1.declaration_type_id && 
+      cd.annee_comptable == exercice
+    );
+    
+    if (!existeDeja) {
+      const nouvelleDeclaration = {
+        client_id: clientId,
+        declaration_type_id: declN1.declaration_type_id,
+        annee_comptable: parseInt(exercice),
+        date_debut: recalculerDatePourExercice(declN1.date_debut, exercice),
+        date_fin: recalculerDatePourExercice(declN1.date_fin, exercice),
+        est_obligatoire: declN1.est_obligatoire
+      };
+      
+      clientDeclarations.push(nouvelleDeclaration);
+    }
+  });
+  
+  // ✅ FORCER le rechargement pour afficher les cases cochées
+  loadAffectationChecklist(clientId);
+  
+  showNotification(
+    `✅ ${declarationsN1.length} déclaration(s) reportée(s) depuis ${parseInt(exercice) - 1}`,
+    'success'
+  );
+  
+  // Journalisation
+  logUserActivity('reporter_declarations_n1', 'declarations', {
+    client_id: clientId,
+    exercice: exercice,
+    exercice_precedent: parseInt(exercice) - 1,
+    declarations_reportees: declarationsN1.length
+  }, clientId);
+}
+
+function applyDeclarationsFromN1(clientId, exercice, declarationsN1) {
+  console.log(`🔄 Application déclarations N-1 → N: ${declarationsN1.length} déclarations`);
+  
+  // Mettre à jour les données locales
+  declarationsN1.forEach(declN1 => {
+    const existeDeja = clientDeclarations.some(cd => 
+      cd.client_id === clientId && 
+      cd.declaration_type_id === declN1.declaration_type_id && 
+      cd.annee_comptable == exercice
+    );
+    
+    if (!existeDeja) {
+      // Créer une nouvelle déclaration pour N basée sur N-1
+      const nouvelleDeclaration = {
+        client_id: clientId,
+        declaration_type_id: declN1.declaration_type_id,
+        annee_comptable: parseInt(exercice),
+        date_debut: recalculerDatePourExercice(declN1.date_debut, exercice),
+        date_fin: recalculerDatePourExercice(declN1.date_fin, exercice),
+        est_obligatoire: declN1.est_obligatoire
+      };
+      
+      clientDeclarations.push(nouvelleDeclaration);
+    }
+  });
+  
+  // Recharger l'affichage
+  loadAffectationChecklist(clientId);
+  
+  showNotification(
+    `✅ ${declarationsN1.length} déclaration(s) reportée(s) depuis ${parseInt(exercice) - 1}`,
+    'success'
+  );
+  
+  // Journalisation
+  logUserActivity('reporter_declarations_n1', 'declarations', {
+    client_id: clientId,
+    exercice: exercice,
+    declarations_reportees: declarationsN1.length
+  }, clientId);
+}
+function isCotisationMinimaleDeclaration(decl) {
+  if (!decl) return false;
+  
+  const type = (decl.type_declaration || '').toLowerCase();
+  const nom = (decl.nom_template || '').toLowerCase();
+  
+  return (
+    type.includes('is') && 
+    (nom.includes('cotisation minimale') || nom.includes('minimale') || nom.includes('3000'))
+  );
+}
+
+function recalculerDatePourExercice(dateString, nouvelExercice) {
+  if (!dateString) return null;
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return null;
+    
+    // Garder jour/mois, changer l'année
+    const nouvelleDate = new Date(date);
+    nouvelleDate.setFullYear(parseInt(nouvelExercice));
+    
+    return toYMDLocal(nouvelleDate);
+    
+  } catch (error) {
+    console.error('❌ Erreur recalcul date:', error);
+    return null;
+  }
+}
+
 
 function initializeAccordions() {
   const accordions = document.querySelectorAll('.category-accordion');
@@ -3442,11 +3679,41 @@ async function handleAffectation() {
         const boxes = document.querySelectorAll('.item-checkbox');
         const idsSelectionnes = []; 
         
+        // ✅ NOUVELLE LOGIQUE : Vérifier si CM devrait être cochée automatiquement
+        const conditionCM = checkCotisationMinimaleCondition(clientId, annee);
+        let cmEstSelectionnee = false;
+        
         boxes.forEach(b => {
             if (b.checked && !b.disabled) {
-                idsSelectionnes.push(b.getAttribute('data-declaration-id'));
+                const declId = b.getAttribute('data-declaration-id');
+                idsSelectionnes.push(declId);
+                
+                // Vérifier si la CM est dans la sélection
+                const decl = declarationTypes.find(d => d.id === declId);
+                if (decl && isCotisationMinimaleDeclaration(decl)) {
+                    cmEstSelectionnee = true;
+                }
             }
         });
+
+        // ✅ ALERTE si condition CM mais pas cochée
+        if (conditionCM && !cmEstSelectionnee) {
+            const confirmationCM = await showConfirmationDialog(
+                'Cotisation minimale obligatoire',
+                `La cotisation minimale 3000 est <strong>obligatoire</strong> pour ce client en ${annee} (36 mois atteints).<br><br>
+                Souhaitez-vous l'ajouter automatiquement à la sélection ?`,
+                'warning'
+            );
+            
+            if (confirmationCM) {
+                // Trouver l'ID de la déclaration CM
+                const declCM = declarationTypes.find(d => isCotisationMinimaleDeclaration(d));
+                if (declCM) {
+                    idsSelectionnes.push(declCM.id);
+                    console.log('✅ CM ajoutée après confirmation utilisateur');
+                }
+            }
+        }
 
         // CAS 1: AUCUNE SÉLECTION = TOUT SUPPRIMER
         if (idsSelectionnes.length === 0) {
@@ -3468,7 +3735,7 @@ async function handleAffectation() {
                 .delete()
                 .eq('client_id', clientId)
                 .eq('annee_comptable', annee);
-            
+
             await supabase.from('echeances')
                 .delete()
                 .eq('client_id', clientId)
@@ -3559,7 +3826,8 @@ async function handleAffectation() {
                 ancien_nombre: ancienCount,
                 nouveau_nombre: nouveauCount,
                 declarations_ajoutees: nomsDeclarations,
-                declarations_ids: idsSelectionnes
+                declarations_ids: idsSelectionnes,
+                cm_ajoutee_auto: conditionCM && cmEstSelectionnee
             }, clientId);
             
             showNotification(
@@ -3594,6 +3862,7 @@ async function handleAffectation() {
         hideLoading();
     }
 }
+
 async function genererEcheancesAutomatiques(clientId, annee){
   await supabase.from('echeances').delete().eq('client_id', clientId).eq('annee_comptable', annee);
   
@@ -3672,7 +3941,7 @@ function calculerDateReellePourDecl(decl, dateTemplate, annee){
 }
 
 
-function doitBasculerNPlus1(decl){
+function doitBasculerNPlus1(decl) {
   const p = (decl.periodicite || '').toLowerCase();
   const type = (decl.type_declaration || '').toLowerCase();
   const nom = (decl.nom_template || '').toLowerCase();
@@ -3705,6 +3974,93 @@ function doitBasculerNPlus1(decl){
   if (p === 'mensuelle' && decl.mois_reference === 12) return true;
   
   return false;
+}
+function checkCotisationMinimaleCondition(clientId, exercice) {
+  if (!clientId || !exercice) return false;
+  
+  const client = clients.find(c => c.id === clientId);
+  if (!client || !client.client_type_id) return false;
+  
+  // Vérifier si c'est une personne morale (types 1 ou 2 selon votre structure)
+  const clientType = clientTypes.find(ct => ct.id === client.client_type_id);
+  if (!clientType || !clientType.nom.toLowerCase().includes('personne morale')) {
+    return false;
+  }
+  
+  // Vérifier date de création
+  if (!client.date_creation) return false;
+  
+  try {
+    const dateCreation = new Date(client.date_creation);
+    if (isNaN(dateCreation.getTime())) return false;
+    
+    // Calculer date création + 36 mois
+    const date36Mois = new Date(dateCreation);
+    date36Mois.setMonth(date36Mois.getMonth() + 36);
+    
+    // Extraire l'année de la date +36 mois
+    const annee36Mois = date36Mois.getFullYear();
+    
+    // Condition réalisée si l'année +36 mois = exercice en cours
+    const conditionRealisee = (annee36Mois === parseInt(exercice));
+    
+    console.log(`📅 CM Check - Client: ${client.nom_raison_sociale}, Création: ${client.date_creation}, +36mois: ${date36Mois.toISOString().split('T')[0]}, Année: ${annee36Mois}, Exercice: ${exercice}, Condition: ${conditionRealisee}`);
+    
+    return conditionRealisee;
+    
+  } catch (error) {
+    console.error('❌ Erreur calcul CM:', error);
+    return false;
+  }
+}
+function checkCotisationMinimaleNPlus1(clientId, exercice) {
+  if (!clientId || !exercice) return false;
+  
+  const client = clients.find(c => c.id === clientId);
+  if (!client || !client.client_type_id) return false;
+  
+  // Vérifier si c'est une personne morale
+  const clientType = clientTypes.find(ct => ct.id === client.client_type_id);
+  if (!clientType || !clientType.nom.toLowerCase().includes('personne morale')) {
+    return false;
+  }
+  
+  if (!client.date_creation) return false;
+  
+  try {
+    const dateCreation = new Date(client.date_creation);
+    if (isNaN(dateCreation.getTime())) return false;
+    
+    // Calculer date création + 36 mois
+    const date36Mois = new Date(dateCreation);
+    date36Mois.setMonth(date36Mois.getMonth() + 36);
+    
+    // Extraire l'année de la date +36 mois
+    const annee36Mois = date36Mois.getFullYear();
+    
+    // Condition N+1 réalisée si l'année +36 mois = exercice + 1
+    const conditionNPlus1 = (annee36Mois === parseInt(exercice) + 1);
+    
+    console.log(`🔮 CM N+1 Check - Client: ${client.nom_raison_sociale}, +36mois: ${annee36Mois}, Exercice+1: ${parseInt(exercice) + 1}, Condition N+1: ${conditionNPlus1}`);
+    
+    return conditionNPlus1;
+    
+  } catch (error) {
+    console.error('❌ Erreur calcul CM N+1:', error);
+    return false;
+  }
+}
+function getDeclarationsAnneePrecedente(clientId, exercice) {
+  if (!clientId || !exercice) return [];
+  
+  const exercicePrecedent = (parseInt(exercice) - 1).toString();
+  const declarationsN1 = clientDeclarations.filter(cd => 
+    cd.client_id === clientId && cd.annee_comptable == exercicePrecedent
+  );
+  
+  console.log(`📊 Déclarations N-1 - Client: ${clientId}, N: ${exercice}, N-1: ${exercicePrecedent}, Trouvées: ${declarationsN1.length}`);
+  
+  return declarationsN1;
 }
 
 
@@ -6139,7 +6495,10 @@ document.getElementById('btnImprimerSituation').addEventListener('click', () => 
    FILTRES / SELECTEURS
    ========================= */
 document.getElementById('clientSelection').addEventListener('change', loadAffectationChecklist);
-document.getElementById('anneeAffectation').addEventListener('change', loadAffectationChecklist);
+document.getElementById('anneeAffectation').addEventListener('change', function() {
+  console.log('🔄 Changement d\'année détecté');
+  loadAffectationChecklist();
+});
 document.getElementById('anneeSelection').addEventListener('change', loadEcheancesTable);
 document.getElementById('filtreEtat').addEventListener('change', loadEcheancesTable);
 document.getElementById('filtreClient').addEventListener('change', loadEcheancesTable);
