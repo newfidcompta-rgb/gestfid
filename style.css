@@ -2605,3 +2605,369 @@ body {
   background: white;
   font-size: 0.875rem;
 }
+/* =======================================================
+   PACK MOBILE GEST FID - DESIGN SOPHISTIQUÉ (≤ 768px)
+   ======================================================= */
+
+/* Bouton menu mobile (créé en JS dans initializeMobileFeatures) */
+.mobile-menu-toggle {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: none;
+  background: var(--bg-sidebar);
+  color: #fff;
+  display: none; /* visible seulement en mobile */
+  z-index: 1100;
+  box-shadow: var(--shadow-lg);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mobile-menu-toggle i {
+  font-size: 1.1rem;
+}
+
+/* =============================
+   MODE MOBILE GLOBAL
+   ============================= */
+@media (max-width: 768px) {
+
+  /* ---- Layout général ---- */
+  body {
+    font-size: 14px;
+    overflow-x: hidden;
+  }
+
+  .container {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* Sidebar = menu coulissant (off-canvas) */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    transform: translateX(0);
+    transition: transform 0.25s ease-out;
+    z-index: 1050;
+  }
+
+  /* Masquée quand .mobile-hidden est ajoutée par le JS */
+  .sidebar.mobile-hidden {
+    transform: translateX(-100%);
+  }
+
+  /* Bouton burger visible en mobile */
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  /* Contenu principal en pleine largeur */
+  .main-content {
+    margin-left: 0;
+    padding-top: 3.5rem;  /* espace pour le bouton/haut de page */
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* ---- Header de page ---- */
+  .header {
+    height: auto;
+    padding: 0.5rem 0.25rem 0.5rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    position: static !important;  /* plus de sticky en mobile */
+    top: auto !important;
+    z-index: auto !important;
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-start;
+  }
+
+  .header h2 {
+    font-size: 1.3rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .date-display {
+    font-size: 0.75rem;
+  }
+
+  /* ---- Onglets génériques ---- */
+  .tabs {
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .tab {
+    display: inline-block;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.8rem;
+  }
+
+  /* Onglets spécifiques avec position sticky -> on annule */
+  #clients .tabs,
+  #declarations .tabs,
+  #codes .tabs,
+  #honoraires .tabs {
+    position: static !important;
+    top: auto !important;
+    height: auto;
+  }
+
+  /* ---- Formulaires génériques ---- */
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .form-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .form-group label {
+    font-size: 0.85rem;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.85rem;
+    min-height: 34px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .form-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ---- Formulaires Clients (add / view / edit) ---- */
+  #addClientForm,
+  #editClientForm,
+  #viewClientForm {
+    padding: 0.75rem 0.75rem 1rem;
+  }
+
+  #addClientForm .form-grid,
+  #editClientForm .form-grid,
+  #viewClientForm .form-grid {
+    grid-template-columns: 1fr;
+    gap: 8px 10px;
+  }
+
+  #addClientForm label,
+  #editClientForm label,
+  #viewClientForm label {
+    font-size: 0.84rem;
+  }
+
+  /* ---- Barre de recherche générique ---- */
+  .search-box {
+    width: 100% !important;
+    flex: 1;
+  }
+
+  .search-box input {
+    font-size: 0.85rem;
+    padding: 0.55rem 0.75rem 0.55rem 2.2rem;
+  }
+
+  /* ---- Tableaux : scroll horizontal + plus compacts ---- */
+  .clients-table-container,
+  .declarations-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .clients-table,
+  .declarations-table {
+    min-width: 600px; /* évite que ça casse trop */
+  }
+
+  .clients-table th,
+  .declarations-table th {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .clients-table td,
+  .declarations-table td {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .action-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+  }
+
+  /* ---- Page Clients : header + filtres ---- */
+  #clients .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #clients .header-actions > div {
+    width: 100%;
+  }
+
+  #filterClientType {
+    width: 100%;
+  }
+
+  /* ---- Archives clients ---- */
+  #searchArchivesInput {
+    width: 100%;
+  }
+
+  /* ---- Déclarations : filtres échéances ---- */
+  #echeances .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #echeances .form-group,
+  #echeances #anneeSelection,
+  #echeances #filtreEtat,
+  #echeances #filtreTypeDeclaration,
+  #echeances .custom-select-wrapper {
+    width: 100%;
+  }
+
+  .echeances-actions {
+    justify-content: center;
+  }
+
+  #btnImprimerListeEcheances {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ---- Honoraires : header + filtres + grilles ---- */
+  #honoraires .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .honos-search {
+    width: 100%;
+  }
+
+  #honorairesExerciceSelect,
+  .honos-select {
+    width: 100%;
+  }
+
+  .honos-split {
+    grid-template-columns: 1fr;
+  }
+
+  #btnFacturerService,
+  #btnAjouterPaiement,
+  #btnImprimerSituation {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ---- Situation Globale ---- */
+  #situation-globale .form-row {
+    gap: 0.75rem;
+  }
+
+  #situation-globale .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #situation-globale .card {
+    margin-bottom: 1rem;
+  }
+
+  /* ---- Codes d’accès ---- */
+  #codes .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #codes .service-section {
+    padding: 1rem;
+  }
+
+  .code-field-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .code-field-value {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* ---- Utilisateurs ---- */
+  .user-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .user-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* ---- Modals honoraires (facturation / paiement) plein écran ---- */
+  .modal-overlay {
+    left: 0;
+  }
+
+  .modal-content {
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-body {
+    padding: 1rem 0.75rem 1.25rem;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer button {
+    width: 100%;
+  }
+}

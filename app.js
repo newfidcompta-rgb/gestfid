@@ -123,23 +123,7 @@ function formatMoney(amount) {
   }).format(amount);
 }
 
-function getStatutClass(statut) {
-  const classes = {
-    'a_jour': 'actif',
-    'en_retard': 'inactif',
-    'impaye': 'archive'
-  };
-  return classes[statut] || 'archive';
-}
 
-function getStatutLabel(statut) {
-  const labels = {
-    'a_jour': 'À jour',
-    'en_retard': 'En retard',
-    'impaye': 'Impayé'
-  };
-  return labels[statut] || 'Inconnu';
-}
 
 /* =========================
    UTILITAIRES COPIER
@@ -5640,9 +5624,20 @@ function updateExistingRow(row, item, createRowFn) {
     const clientsActifsCount = idsClientsActifs.size;
     console.log(`✅ Clients actifs: ${clientsActifsCount}`);
 
-    /* 2) CLIENTS À JOUR (aucune échéance tardive) */
+    /* 2) CLIENTS À JOUR (seulement ceux avec déclarations et sans retard) */
     console.log('🔍 Calcul des clients à jour...');
     const aujourdhui = toYMDLocal(new Date());
+
+    // ✅ RÉCUPÉRER LES CLIENTS AVEC DÉCLARATIONS
+    const anneeEnCours = new Date().getFullYear();
+    const { data: clientsAvecDeclarations, error: declError } = await supabase
+      .from('client_declarations')
+      .select('client_id')
+      .eq('annee_comptable', anneeEnCours);
+
+    const idsClientsAvecDeclarations = new Set(
+      (clientsAvecDeclarations || []).map(d => d.client_id)
+    );
 
     // Échéances dépassées ET statut NULL
     const { data: tardivesNull, error: e1 } = await supabase
@@ -5664,12 +5659,16 @@ function updateExistingRow(row, item, createRowFn) {
     const clientsAvecRetard = new Set(
       [...(tardivesNull || []), ...(tardivesNotOk || [])]
         .map(r => r.client_id)
-        .filter(id => idsClientsActifs.has(id)) // on ne garde que les actifs
+        .filter(id => idsClientsAvecDeclarations.has(id)) // ✅ SEULEMENT clients avec déclarations
     );
 
-    let clientsAJour = clientsActifsCount - clientsAvecRetard.size;
-    if (clientsAJour < 0) clientsAJour = 0;
-    console.log(`✅ Clients à jour: ${clientsAJour} sur ${clientsActifsCount}`);
+    // ✅ CLIENTS À JOUR = clients avec déclarations SANS retard
+    const clientsAvecDeclEtSansRetard = [...idsClientsAvecDeclarations].filter(id => 
+      !clientsAvecRetard.has(id)
+    );
+    
+    const clientsAJour = clientsAvecDeclEtSansRetard.length;
+    console.log(`✅ Clients à jour: ${clientsAJour} sur ${idsClientsAvecDeclarations.size} clients avec déclarations`);
 
     /* 3) PÉRIODE MENSUELLE */
     const maintenant = new Date();
@@ -5729,22 +5728,12 @@ function updateExistingRow(row, item, createRowFn) {
     /* 6) CLIENTS INCOMPLETS (pas de déclarations affectées sur l'année en cours) */
     let clientsIncomplets = 0;
     try {
-      const anneeEnCours = maintenant.getFullYear();
-      const { data: clientsAvecDeclarations, error: declError } = await supabase
-        .from('client_declarations')
-        .select('client_id')
-        .eq('annee_comptable', anneeEnCours);
-
-      if (declError) {
-        console.warn('⚠️ Erreur clients incomplets:', declError);
-      } else {
-        // On compte seulement ceux qui sont actifs
-        const setActifsAvecDecl = new Set(
-          (clientsAvecDeclarations || []).map(d => d.client_id).filter(id => idsClientsActifs.has(id))
-        );
-        clientsIncomplets = clientsActifsCount - setActifsAvecDecl.size;
-        if (clientsIncomplets < 0) clientsIncomplets = 0;
-      }
+      // On compte seulement ceux qui sont actifs
+      const setActifsAvecDecl = new Set(
+        (clientsAvecDeclarations || []).map(d => d.client_id).filter(id => idsClientsActifs.has(id))
+      );
+      clientsIncomplets = clientsActifsCount - setActifsAvecDecl.size;
+      if (clientsIncomplets < 0) clientsIncomplets = 0;
     } catch (error) {
       console.warn('⚠️ Exception clients incomplets:', error);
       clientsIncomplets = 0;
@@ -5754,8 +5743,8 @@ function updateExistingRow(row, item, createRowFn) {
     /* 7) MISE À JOUR UI */
     console.log('🎨 Mise à jour de l\'affichage...');
     updateDashboardDisplay({
-      clientsActifs: clientsActifsCount,
-      clientsAJour,
+      clientsActifs: clientsActifsCount, // Garde les clients actifs totaux
+      clientsAJour, // ✅ Maintenant = seulement clients avec déclarations et sans retard
       totalDeclarationsMois,
       declarationsDeposees,
       declarationsRestantes,
@@ -5904,10 +5893,9 @@ function initializeSituationGlobale() {
   loadSituationGlobale();
   
   document.getElementById('globalExerciceSelect').addEventListener('change', loadSituationGlobale);
-  document.getElementById('filtreStatut').addEventListener('change', filterSituationGlobale);
+  
   document.getElementById('filtreMontant').addEventListener('change', filterSituationGlobale);
   document.getElementById('rechercheGlobale').addEventListener('input', filterSituationGlobale);
-  document.getElementById('exportSituationBtn').addEventListener('click', exportSituationExcel);
 }
 
 function loadSituationGlobale() {
@@ -5952,21 +5940,6 @@ function loadSituationGlobale() {
       });
     }
     
-    let statut = 'a_jour';
-    if (resteAPayer > 0) {
-      const dernierPaiement = paiements.sort((a, b) => 
-        new Date(b.date) - new Date(a.date)
-      )[0];
-      
-      if (!dernierPaiement) {
-        statut = 'impaye';
-      } else {
-        const moisDepuisPaiement = (new Date().getFullYear() - new Date(dernierPaiement.date).getFullYear()) * 12 + 
-                                  (new Date().getMonth() - new Date(dernierPaiement.date).getMonth());
-        statut = moisDepuisPaiement > 3 ? 'en_retard' : 'a_jour';
-      }
-    }
-    
     const dernierPaiement = paiements.sort((a, b) => 
       new Date(b.date) - new Date(a.date)
     )[0];
@@ -5976,7 +5949,6 @@ function loadSituationGlobale() {
       totalFacture,
       totalPaye,
       resteAPayer,
-      statut,
       dernierPaiement: dernierPaiement ? {
         date: dernierPaiement.date,
         montant: dernierPaiement.montant
@@ -6015,11 +5987,6 @@ function updateSituationGlobaleUI() {
         ${formatMoney(item.resteAPayer)}
       </td>
       <td>
-        <span class="statut-badge ${getStatutClass(item.statut)}">
-          ${getStatutLabel(item.statut)}
-        </span>
-      </td>
-      <td>
         ${item.dernierPaiement ? `
           ${new Date(item.dernierPaiement.date).toLocaleDateString('fr-FR')}
           <br><small>${formatMoney(item.dernierPaiement.montant)} DH</small>
@@ -6035,21 +6002,27 @@ function updateSituationGlobaleUI() {
 }
 
 function filterSituationData(data) {
-  const filtreStatut = document.getElementById('filtreStatut').value;
   const filtreMontant = document.getElementById('filtreMontant').value;
   const recherche = document.getElementById('rechercheGlobale').value.toLowerCase();
   
-  return data.filter(item => {
-    if (filtreStatut !== 'tous' && item.statut !== filtreStatut) {
-      return false;
-    }
-    
+  console.log('🔍 Filtre Montant:', filtreMontant);
+  console.log('🔍 Données avant filtrage:', data.length);
+  
+  const resultat = data.filter(item => {
     if (filtreMontant !== 'tous') {
       const montant = item.resteAPayer;
+      console.log('💰 Montant client:', item.client.nom_raison_sociale, montant);
+      
       switch (filtreMontant) {
-        case '0-5000': if (montant > 5000) return false; break;
-        case '5000-20000': if (montant <= 5000 || montant > 20000) return false; break;
-        case '20000+': if (montant <= 20000) return false; break;
+        case '0-5000': 
+          if (montant > 5000) return false; 
+          break;
+        case '5000-20000': 
+          if (montant <= 5000 || montant > 20000) return false; 
+          break;
+        case '20000+': 
+          if (montant <= 20000) return false; 
+          break;
       }
     }
     
@@ -6063,13 +6036,19 @@ function filterSituationData(data) {
     
     return true;
   });
+  
+  console.log('🔍 Données après filtrage:', resultat.length);
+  return resultat;
 }
 
 function updateTotauxGlobaux(data) {
-  const totalClients = data.length;
-  const totalFacture = data.reduce((sum, item) => sum + item.totalFacture, 0);
-  const totalPaye = data.reduce((sum, item) => sum + item.totalPaye, 0);
-  const totalRestant = data.reduce((sum, item) => sum + item.resteAPayer, 0);
+  // Filtrer seulement les clients avec factures
+  const clientsAvecFactures = data.filter(item => item.totalFacture > 0);
+  
+  const totalClients = clientsAvecFactures.length;
+  const totalFacture = clientsAvecFactures.reduce((sum, item) => sum + item.totalFacture, 0);
+  const totalPaye = clientsAvecFactures.reduce((sum, item) => sum + item.totalPaye, 0);
+  const totalRestant = clientsAvecFactures.reduce((sum, item) => sum + item.resteAPayer, 0);
   
   document.getElementById('totalClientsGlobale').textContent = totalClients;
   document.getElementById('totalFactureGlobale').textContent = formatMoney(totalFacture);
@@ -6080,79 +6059,56 @@ function updateTotauxGlobaux(data) {
 function updateCharts() {
   const data = filterSituationData(situationGlobaleData);
   
-  const statuts = {
-    'a_jour': data.filter(item => item.statut === 'a_jour').length,
-    'en_retard': data.filter(item => item.statut === 'en_retard').length,
-    'impaye': data.filter(item => item.statut === 'impaye').length
-  };
+  // ✅ FILTRER SEULEMENT LES CLIENTS AVEC FACTURES
+  const clientsAvecFactures = data.filter(item => item.totalFacture > 0);
   
-  const topClients = data
+  const topClients = clientsAvecFactures
     .filter(item => item.resteAPayer > 0)
     .sort((a, b) => b.resteAPayer - a.resteAPayer)
     .slice(0, 10);
+
+  const totalRestant = clientsAvecFactures.reduce((sum, item) => sum + item.resteAPayer, 0);
   
+  // ✅ CALCUL RÉGLÉS VS EN ATTENTE (seulement clients avec factures)
+  const clientsRegles = clientsAvecFactures.filter(item => item.resteAPayer <= 0).length;
+  const clientsEnAttente = clientsAvecFactures.filter(item => item.resteAPayer > 0).length;
+
   const chartStatut = document.getElementById('chartStatut');
   const chartTopClients = document.getElementById('chartTopClients');
-  
+
   chartStatut.innerHTML = `
     <div style="text-align: center;">
       <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem;">
         <div style="text-align: center;">
           <div style="width: 20px; height: 20px; background: var(--success-color); border-radius: 50%; margin: 0 auto 0.5rem;"></div>
-          <div>À jour: ${statuts.a_jour}</div>
+          <div>Clients réglés: ${clientsRegles}</div>
         </div>
         <div style="text-align: center;">
           <div style="width: 20px; height: 20px; background: var(--warning-color); border-radius: 50%; margin: 0 auto 0.5rem;"></div>
-          <div>En retard: ${statuts.en_retard}</div>
+          <div>En attente: ${clientsEnAttente}</div>
         </div>
-        <div style="text-align: center;">
-          <div style="width: 20px; height: 20px; background: var(--error-color); border-radius: 50%; margin: 0 auto 0.5rem;"></div>
-          <div>Impayé: ${statuts.impaye}</div>
-        </div>
+      </div>
+      <div style="font-size: 0.875rem; color: var(--text-secondary);">
+        Total restant: <strong>${formatMoney(totalRestant)} DH</strong>
       </div>
     </div>
   `;
-  
+
+  // ... reste inchangé
+
+
   chartTopClients.innerHTML = `
     <div style="text-align: center;">
       ${topClients.length > 0 ? topClients.map((item, index) => `
         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; padding: 0.5rem; background: #f8fafc; border-radius: 4px;">
-          <span>${index + 1}. ${item.client.nom_raison_sociale}</span>
-          <strong style="color: var(--warning-color);">${formatMoney(item.resteAPayer)} DH</strong>
+          <span style="font-size: 0.875rem;">${index + 1}. ${item.client.nom_raison_sociale}</span>
+          <strong style="color: var(--warning-color); font-size: 0.875rem;">${formatMoney(item.resteAPayer)} DH</strong>
         </div>
-      `).join('') : '<div class="no-data">Aucun impayé</div>'}
+      `).join('') : '<div class="no-data">Aucun solde restant</div>'}
     </div>
   `;
 }
 
-function exportSituationExcel() {
-  const data = filterSituationData(situationGlobaleData);
-  const exercice = document.getElementById('globalExerciceSelect').value;
-  
-  let csvContent = "Données exportées le: " + new Date().toLocaleDateString('fr-FR') + "\n";
-  csvContent += "Exercice: " + exercice + "\n\n";
-  csvContent += "Client;ICE;Total Facturé (DH);Total Payé (DH);Reste à Payer (DH);Statut;Dernier Paiement\n";
-  
-  data.forEach(item => {
-    csvContent += `"${item.client.nom_raison_sociale}";"${item.client.ice || ''}";"${formatMoney(item.totalFacture)}";"${formatMoney(item.totalPaye)}";"${formatMoney(item.resteAPayer)}";"${getStatutLabel(item.statut)}";"${item.dernierPaiement ? new Date(item.dernierPaiement.date).toLocaleDateString('fr-FR') + ' - ' + formatMoney(item.dernierPaiement.montant) + ' DH' : 'Aucun'}"\n`;
-  });
-  
-  const totalFacture = data.reduce((sum, item) => sum + item.totalFacture, 0);
-  const totalPaye = data.reduce((sum, item) => sum + item.totalPaye, 0);
-  const totalRestant = data.reduce((sum, item) => sum + item.resteAPayer, 0);
-  
-  csvContent += `\n"TOTAUX";"";"${formatMoney(totalFacture)}";"${formatMoney(totalPaye)}";"${formatMoney(totalRestant)}";"";""\n`;
-  
-  const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `situation_globale_${exercice}_${new Date().toISOString().split('T')[0]}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
 
 window.voirDetailClient = function(clientId) {
   document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
@@ -7329,3 +7285,5 @@ function getTodayFormatted() {
 document.addEventListener('DOMContentLoaded', function() {
     initializeHonorairesModals();
 });
+
+initializeMobileFeatures()
