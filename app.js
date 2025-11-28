@@ -563,16 +563,24 @@ function loadUsersList() {
     <tr>
       <td>
         <strong>${user.nom_complet}</strong>
-        ${user.id === currentUser.id ? '<span style="color: var(--primary-color); margin-left: 0.5rem;">(Vous)</span>' : ''}
+        ${user.id === currentUser.id
+          ? '<span style="color: var(--primary-color); margin-left: 0.5rem;">(Vous)</span>'
+          : ''}
       </td>
       <td>${user.email}</td>
       <td>
         <span class="role-badge role-${user.role}">
-          ${user.role === 'admin' ? 'Administrateur' : 'utilisateur'}
+          ${user.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
         </span>
       </td>
       <td>
-        ${user.last_login ? new Date(user.last_login).toLocaleDateString('fr-FR') + ' ' + new Date(user.last_login).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}) : 'Jamais'}
+        ${
+          user.last_login
+            ? new Date(user.last_login).toLocaleDateString('fr-FR')
+              + ' '
+              + new Date(user.last_login).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+            : 'Jamais'
+        }
       </td>
       <td>
         <span class="status-badge status-${user.is_active ? 'active' : 'inactive'}">
@@ -580,18 +588,31 @@ function loadUsersList() {
         </span>
       </td>
       <td class="actions">
-        ${user.id !== currentUser.id ? `
-          <button class="btn-warning" onclick="toggleUserStatus('${user.id}', ${!user.is_active})" title="${user.is_active ? 'Désactiver' : 'Activer'}">
-            <i class="fas ${user.is_active ? 'fa-user-slash' : 'fa-user-check'}"></i>
-          </button>
-          <button class="btn-primary" onclick="resetUserPassword('${user.id}')" title="Réinitialiser le mot de passe">
-            <i class="fas fa-key"></i>
-          </button>
-        ` : '<span style="color: var(--text-secondary); font-size: 0.875rem;">Compte actuel</span>'}
+        ${
+          user.id !== currentUser.id
+            ? `
+              <div class="dropdown">
+                <button class="action-btn" type="button">Action ▾</button>
+                <div class="dropdown-content">
+                  <a href="#"
+                     onclick="event.preventDefault(); toggleUserStatus('${user.id}', ${!user.is_active});">
+                    <i class="fas ${user.is_active ? 'fa-user-slash' : 'fa-user-check'}"></i>
+                    ${user.is_active ? 'Désactiver' : 'Activer'}
+                  </a>
+                  <a href="#"
+                     onclick="event.preventDefault(); resetUserPassword('${user.id}');">
+                    <i class="fas fa-key"></i> Réinitialiser MDP
+                  </a>
+                </div>
+              </div>
+            `
+            : `<span style="color: var(--text-secondary); font-size: 0.875rem;">Compte actuel</span>`
+        }
       </td>
     </tr>
   `).join('');
 }
+
 
 function populateUserFilter() {
   const select = document.getElementById('filterUserActivity');
@@ -1308,70 +1329,112 @@ function setupGlobalMenus(){
   document.addEventListener('click', (e) => {
     const t = e.target;
 
-    // ✅ CORRECTION : Gestion dropdown CLIENTS
-    if(t.closest('#clients')){
+    // ✅ GESTION DROPDOWN CLIENTS (liste + archives dans la page #clients)
+    if (t.closest('#clients')) {
       const btn = t.closest('.action-btn');
-      if(btn){
-        const row = btn.closest('tr');
-        const clientId = row?.dataset.clientId;
+      if (btn) {
+        // On ouvre/ferme le menu associé au bouton, que ce soit pour
+        // la liste principale ou pour les clients archivés
+        const dropdown = btn.closest('.dropdown');
+        const menu = dropdown ? dropdown.querySelector('.dropdown-content') : null;
         
-        if (clientId) {
-          // OBTENIR LE MENU CORRESPONDANT
-          const dropdown = btn.closest('.dropdown');
-          const menu = dropdown.querySelector('.dropdown-content');
+        if (menu) {
+          const isAlreadyOpen = menu.classList.contains('show');
           
-          if (menu) {
-            // ✅ CORRECTION : Vérifier si le menu est déjà ouvert
-            const isAlreadyOpen = menu.classList.contains('show');
-            
-            // Fermer tous les autres menus d'abord
-            document.querySelectorAll('.dropdown-content.show').forEach(m => {
-              m.classList.remove('show');
-              m.classList.remove('dropdown-up'); // Reset position
-            });
-            
-            // ✅ CORRECTION : Basculer l'état (ouvrir si fermé, fermer si ouvert)
-            if (!isAlreadyOpen) {
-              menu.classList.add('show');
-              // ✅ NOUVEAU : Ajuster la position selon l'espace disponible
-              adjustDropdownPosition(menu, btn);
-            }
+          // Fermer tous les autres menus d'abord
+          document.querySelectorAll('.dropdown-content.show').forEach(m => {
+            m.classList.remove('show');
+            m.classList.remove('dropdown-up'); // Reset position
+          });
+          
+          // Basculer l'état (ouvrir si fermé, fermer si ouvert)
+          if (!isAlreadyOpen) {
+            menu.classList.add('show');
+            // Ajuster la position selon l'espace disponible
+            adjustDropdownPosition(menu, btn);
           }
         }
         return;
       }
       
-      // Gestion des clics sur les options du menu clients
+      // Gestion des clics sur les options du menu clients (liste principale)
       const item = t.closest('.action-view, .action-edit, .action-affect, .action-archive');
-      if(item){
+      if (item) {
         const row = item.closest('tr');
         const clientId = row?.dataset.clientId;
         const action = item.classList[0].replace('action-', ''); // 'view', 'edit', etc.
         
         if (clientId) {
-          // Fermer le menu
+          // Fermer tous les menus
           document.querySelectorAll('.dropdown-content.show').forEach(m => {
             m.classList.remove('show');
             m.classList.remove('dropdown-up');
           });
-          // Exécuter l'action
+          // Exécuter l'action métier
           handleClientAction(action, item);
         }
         return;
       }
+
+      // 👉 Pour les archives clients : les <a> ont uniquement un onclick inline.
+      // Ici on ferme juste le menu après un clic sur une option.
+      const archiveAction = t.closest('#archives .dropdown-content a');
+      if (archiveAction) {
+        document.querySelectorAll('.dropdown-content.show').forEach(m => {
+          m.classList.remove('show');
+          m.classList.remove('dropdown-up');
+        });
+        // L'action (restaurer / supprimer) est gérée par l'onclick inline
+        return;
+      }
     }
 
-    // ✅ CORRECTION : Gestion dropdown ÉCHÉANCES
-    if(t.closest('#echeances')){
+    // ✅ GESTION DROPDOWN UTILISATEURS (#gestion-utilisateurs)
+    if (t.closest('#gestion-utilisateurs')) {
+      const btn = t.closest('.action-btn');
+      if (btn) {
+        const dropdown = btn.closest('.dropdown');
+        const menu = dropdown ? dropdown.querySelector('.dropdown-content') : null;
+        
+        if (menu) {
+          const isAlreadyOpen = menu.classList.contains('show');
+          
+          // Fermer tous les autres menus d'action
+          document.querySelectorAll('.dropdown-content.show').forEach(m => {
+            m.classList.remove('show');
+            m.classList.remove('dropdown-up');
+          });
+          
+          if (!isAlreadyOpen) {
+            menu.classList.add('show');
+            adjustDropdownPosition(menu, btn);
+          }
+        }
+        return;
+      }
+
+      // Clic sur une option du menu utilisateur → on ferme le menu,
+      // ET l'action métier est gérée par l'onclick inline (toggleUserStatus / resetUserPassword)
+      const userAction = t.closest('.dropdown-content a');
+      if (userAction) {
+        document.querySelectorAll('.dropdown-content.show').forEach(m => {
+          m.classList.remove('show');
+          m.classList.remove('dropdown-up');
+        });
+        return;
+      }
+    }
+
+    // ✅ GESTION DROPDOWN ÉCHÉANCES
+    if (t.closest('#echeances')) {
       const btn = t.closest('.action-toggle');
-      if(btn){
+      if (btn) {
         const id = btn.getAttribute('data-id');
         
         // OBTENIR LE MENU CORRESPONDANT
         const menu = document.getElementById(`menu-${id}`);
         
         if (menu) {
-          // ✅ CORRECTION : Vérifier si le menu est déjà ouvert
           const isAlreadyOpen = menu.classList.contains('show');
           
           // Fermer tous les autres menus d'abord
@@ -1380,10 +1443,10 @@ function setupGlobalMenus(){
             m.classList.remove('menu-up');
           });
           
-          // ✅ CORRECTION : Basculer l'état
+          // Basculer l'état
           if (!isAlreadyOpen) {
             menu.classList.add('show');
-            // ✅ NOUVEAU : Ajuster la position selon l'espace disponible
+            // Ajuster la position selon l'espace disponible
             adjustActionMenuPosition(menu, btn);
           }
         }
@@ -1391,7 +1454,7 @@ function setupGlobalMenus(){
       }
       
       const item = t.closest('.menu-item');
-      if(item){
+      if (item) {
         mettreAJourStatutEcheance(item.getAttribute('data-id'), item.getAttribute('data-action'));
         document.querySelectorAll('.action-menu.show').forEach(m => {
           m.classList.remove('show');
@@ -1401,18 +1464,17 @@ function setupGlobalMenus(){
       }
     }
 
-    // ✅ CORRECTION : Gestion dropdown HONORAIRES
-    if(t.closest('#honoraires')){
+    // ✅ GESTION DROPDOWN HONORAIRES
+    if (t.closest('#honoraires')) {
       const btn = t.closest('.action-toggle');
-      if(btn){
+      if (btn) {
         const id = btn.getAttribute('data-id');
         const type = btn.getAttribute('data-type'); // 'factu' ou 'pay'
         
-        // ✅ CORRECTION : Utiliser le bon ID selon le type
+        // Utiliser le bon ID selon le type
         const menu = document.getElementById(`honos-${type}-menu-${id}`);
         
         if (menu) {
-          // ✅ CORRECTION : Vérifier si le menu est déjà ouvert
           const isAlreadyOpen = menu.classList.contains('show');
           
           // Fermer tous les autres menus d'abord
@@ -1421,10 +1483,9 @@ function setupGlobalMenus(){
             m.classList.remove('menu-up');
           });
           
-          // ✅ CORRECTION : Basculer l'état
+          // Basculer l'état
           if (!isAlreadyOpen) {
             menu.classList.add('show');
-            // ✅ NOUVEAU : Ajuster la position selon l'espace disponible
             adjustActionMenuPosition(menu, btn);
           }
         }
@@ -1432,7 +1493,7 @@ function setupGlobalMenus(){
       }
       
       const item = t.closest('.menu-item');
-      if(item){
+      if (item) {
         const id = item.getAttribute('data-id');
         const action = item.getAttribute('data-action');
         const type = item.getAttribute('data-type');
@@ -1446,8 +1507,8 @@ function setupGlobalMenus(){
       }
     }
 
-    // ✅ FERMER TOUS LES MENUS si click ailleurs
-    if(!t.closest('.dropdown') && !t.closest('.action-dropdown')) {
+    // ✅ FERMER TOUS LES MENUS si click ailleurs (global)
+    if (!t.closest('.dropdown') && !t.closest('.action-dropdown')) {
       document.querySelectorAll('.dropdown-content.show, .action-menu.show').forEach(m => {
         m.classList.remove('show');
         m.classList.remove('dropdown-up');
@@ -1456,6 +1517,8 @@ function setupGlobalMenus(){
     }
   });
 }
+
+
 
 // ✅ NOUVELLE FONCTION : Ajuster la position des dropdowns clients
 function adjustDropdownPosition(menu, button) {
@@ -1572,23 +1635,24 @@ function displayFilteredClients(filteredClients) {
   // CORRECTION : Ajouter le bouton Action dans le HTML
   tbody.innerHTML = filteredClients.map(c => `
     <tr class="client-row" data-client-id="${c.id}">
-      <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
-      <td data-field="ice">${c.ice || '-'}</td>
-      <td data-field="Code client">${c.code_client || '-'}</td>
-      <td data-field="contact">${c.contact || '-'}</td>
-      
-      <td class="actions">
-        <div class="dropdown">
-          <button class="action-btn">Action ▾</button>
-          <div class="dropdown-content">
-            <a href="#" class="action-view">Consulter</a>
-            <a href="#" class="action-edit">Modifier</a>
-            <a href="#" class="action-affect">Affecter déclarations</a>
-            <a href="#" class="action-archive">Archiver</a>
-          </div>
-        </div>
-      </td>
-    </tr>
+  <td data-field="nom_raison_sociale">${c.nom_raison_sociale || 'Non renseigné'}</td>
+  <td class="hide-mobile" data-field="ice">${c.ice || '-'}</td>
+  <td data-field="code_client">${c.code_client || '-'}</td>
+  <td class="hide-mobile" data-field="contact">${c.contact || '-'}</td>
+  
+  <td class="actions">
+    <div class="dropdown">
+      <button class="action-btn">Action ▾</button>
+      <div class="dropdown-content">
+        <a href="#" class="action-view">Consulter</a>
+        <a href="#" class="action-edit">Modifier</a>
+        <a href="#" class="action-affect">Affecter déclarations</a>
+        <a href="#" class="action-archive">Archiver</a>
+      </div>
+    </div>
+  </td>
+</tr>
+
   `).join('');
  
 }
@@ -2332,24 +2396,30 @@ function displayClientsArchives(archives) {
   }
   
   tbody.innerHTML = archives.map(archive => `
-    <tr>
+    <tr data-archive-id="${archive.id}">
       <td>${archive.nom_raison_sociale || 'Non renseigné'}</td>
       <td>${archive.ice || '-'}</td>
       <td>${archive.archived_at ? new Date(archive.archived_at).toLocaleDateString('fr-FR') : '-'}</td>
       <td>${archive.raison_archivage || 'Non spécifiée'}</td>
       <td class="actions">
-        <button class="btn-success" onclick="restaurerClientPrompt('${archive.id}')">
-          <i class="fas fa-undo"></i> Restaurer
-        </button>
-        <button class="btn-secondary" onclick="supprimerClientDefinitifPrompt('${archive.id}')">
-          <i class="fas fa-trash"></i> Supprimer
-        </button>
+        <div class="dropdown">
+          <button class="action-btn" type="button">Action ▾</button>
+          <div class="dropdown-content">
+            <a href="#" onclick="event.preventDefault(); restaurerClientPrompt('${archive.id}')">
+              <i class="fas fa-undo"></i> Restaurer
+            </a>
+            <a href="#" onclick="event.preventDefault(); supprimerClientDefinitifPrompt('${archive.id}')">
+              <i class="fas fa-trash"></i> Supprimer définitivement
+            </a>
+          </div>
+        </div>
       </td>
     </tr>
   `).join('');
   
-  console.log('✅ Affichage des archives mis à jour');
+  console.log('✅ Affichage des archives mis à jour (dropdown actions)');
 }
+
 
 async function archiverClient(clientId, raison) {
   try {
@@ -5541,7 +5611,7 @@ function createFactuRow(r) {
     <td class="actions">
       <div class="action-dropdown">
         <button class="btn-primary action-toggle" data-id="${r.id}" data-type="factu">
-          <i class="fas fa-cog"></i> Actions ▾
+          </i> Actions ▾
         </button>
         <div class="action-menu" id="honos-factu-menu-${r.id}">  <!-- ✅ CORRECTION : honos-factu-menu- -->
           <button class="menu-item" data-action="edit" data-id="${r.id}" data-type="factu">
@@ -5568,7 +5638,7 @@ function createPayRow(r) {
     <td class="actions">
       <div class="action-dropdown">
         <button class="btn-primary action-toggle" data-id="${r.id}" data-type="pay">
-          <i class="fas fa-cog"></i> Actions ▾
+          </i> Actions ▾
         </button>
         <div class="action-menu" id="honos-pay-menu-${r.id}">  <!-- ✅ CORRECTION : honos-pay-menu- -->
           <button class="menu-item" data-action="edit" data-id="${r.id}" data-type="pay">
@@ -5790,7 +5860,29 @@ function updateDashboardDisplay(metrics) {
 
     // Avertissement clients incomplets
     showClientsIncompletsAlert(metrics.clientsIncomplets);
-    
+    /* =============================
+   CALCUL PROGRESSION DU MOIS
+   ============================= */
+
+// totalDeclarationsMois = toutes les déclarations du mois
+// declarationsDeposees = déclarations déposées du mois
+
+let progression = 0;
+
+if (metrics.totalDeclarationsMois > 0) {
+  progression = Math.round(
+    (metrics.declarationsDeposees / metrics.totalDeclarationsMois) * 100
+  );
+}
+
+// Mettre à jour la barre
+const bar = document.querySelector('.progress-fill');
+if (bar) bar.style.width = progression + '%';
+
+// Mettre à jour le texte
+const txt = document.querySelector('.progress-text');
+if (txt) txt.textContent = progression + '% complété';
+
     console.log('✅ Affichage mis à jour avec succès');
   } catch (error) {
     console.error('❌ Erreur mise à jour affichage:', error);
@@ -6474,6 +6566,27 @@ function initializeMobileFeatures() {
   setupTouchOptimizations();
   setupOrientationHandler();
 }
+/* =============================
+   FERMER LA SIDEBAR LORS D’UN CLIC SUR UN LIEN
+   ============================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Sélectionne tous les liens du menu
+  const menuLinks = document.querySelectorAll('.sidebar .nav-link');
+
+  menuLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      const sidebar = document.querySelector('.sidebar');
+
+      // Si on est sur mobile, on ferme le menu
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('show-menu');
+      }
+    });
+  });
+
+});
 
 function setupMobileNavigation() {
   // Créer le bouton menu mobile
@@ -6509,6 +6622,7 @@ function setupMobileNavigation() {
 function toggleMobileMenu() {
   const sidebar = document.querySelector('.sidebar');
   sidebar.classList.toggle('mobile-hidden');
+  sidebar.classList.toggle('show-menu');
 }
 
 function showMobileMenu() {

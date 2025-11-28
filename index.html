@@ -215,9 +215,9 @@
               <thead>
                 <tr>
                   <th>Nom / Raison Sociale</th>
-                  <th>ICE</th>
+                  <th class="hide-mobile">ICE</th>
                   <th>Code Client</th>
-                  <th>Contact</th>
+                  <th class="hide-mobile">Contact</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1476,12 +1476,17 @@
        ========================= -->
   <div id="liste-utilisateurs" class="tab-content active">
     <div class="card">
-      <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1.5rem;">
-        <h3 style="margin: 0; color: var(--text-primary);">Utilisateurs de l'application</h3>
-        <div style="font-size: 0.875rem; color: var(--text-secondary);">
-          <span id="countActiveUsers">0</span> utilisateurs actifs
-        </div>
+      <div class="users-header">
+       <div class="users-header-left">
+        <h3 class="users-title">Utilisateurs de l'application</h3>
+       </div>
+
+       <div class="users-header-right">
+        <span id="countActiveUsers" class="users-count">0</span>
+        <span class="users-count-label">utilisateurs actifs</span>
+       </div>
       </div>
+
 
       <div class="clients-table-container">
         <table class="clients-table">

@@ -2631,6 +2631,112 @@ body {
 .mobile-menu-toggle i {
   font-size: 1.1rem;
 }
+/* =======================
+   GESTION UTILISATEURS HEADER
+   ======================= */
+.users-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: .8rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.users-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.users-header-right {
+  display: flex;
+  align-items: baseline;
+  gap: .4rem;
+}
+
+.users-count {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.users-count-label {
+  font-size: .9rem;
+  color: var(--text-secondary);
+}
+
+/* Version mobile */
+@media (max-width: 768px) {
+  .users-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .5rem;
+  }
+  
+  .users-header-right {
+    font-size: 1rem;
+  }
+}
+
+/* =============================
+   STYLE GLOBAL DES ONGLETTE
+   ============================= */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  gap: 0.3rem;
+  padding: 0 0 0.5rem 0;
+  margin-bottom: 1.5rem;
+}
+
+.tab {
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all 0.25s ease;
+}
+
+.tab:hover {
+  background: #f4f7fb;
+  color: var(--text-primary);
+}
+
+.tab.active {
+  background: #e8f0ff;
+  color: var(--primary-color);
+  border-color: #d0e0ff;
+  border-bottom: 3px solid var(--primary-color);
+  box-shadow: 0 2px 6px rgba(0, 60, 175, 0.05);
+}
+
+/* Version mobile : onglets fluides */
+@media (max-width: 768px) {
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 0.5rem;
+  }
+  
+  .tab {
+    flex: 0 0 auto;
+    padding: 0.55rem 1rem;
+    border-radius: 6px;
+  }
+
+  .tab.active {
+    border-radius: 6px;
+  }
+}
 
 /* =============================
    MODE MOBILE GLOBAL
@@ -2969,5 +3075,51 @@ body {
 
   .modal-footer button {
     width: 100%;
+  }
+}
+/* ===============================
+   Cacher la sidebar par défaut en mobile
+   =============================== */
+@media (max-width: 768px) {
+  /* Sidebar invisible au chargement */
+  .sidebar {
+    transform: translateX(-100%) !important;
+  }
+
+  /* Quand ton JS enlève mobile-hidden => elle apparaît */
+  .sidebar.mobile-hidden {
+    transform: translateX(-100%) !important;
+  }
+
+  /* Quand ton JS veut l'afficher => on force l'ouverture */
+  .sidebar.show-menu {
+    transform: translateX(0) !important;
+  }
+}
+/* ===============================
+   OVERLAY FOND NOIR POUR MOBILE
+   =============================== */
+.mobile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.45);
+  z-index: 1040; /* juste en dessous de la sidebar */
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-overlay.active {
+    display: block;
+  }
+}
+/* ===========================
+   CACHER CERTAINES COLONNES EN MOBILE
+   =========================== */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
   }
 }
