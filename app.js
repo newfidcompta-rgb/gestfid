@@ -4,21 +4,33 @@
 const SUPABASE_URL = 'https://upfelrrjmrabqiocoqls.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwZmVscnJqbXJhYnFpb2NvcWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0MTM4OTMsImV4cCI6MjA3NTk4OTg5M30.bPtAPTWaiD3kSFG-XKkVHCKf7HaApTrfMCX6OuMTwTg';
 
-let supabase;
+// ⚠️ IMPORTANT: ne pas déclarer une variable "sb" (conflit avec le global du SDK CDN)
+let sb;
+
 try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  console.log('Supabase initialisé avec succès');
+  // ✅ singleton global : un seul client Supabase pour toute l'app
+  window.sb = window.sb || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sb = window.sb;
+  console.log('Supabase initialisé avec succès (sb)');
 } catch (error) {
   console.error('Erreur initialisation Supabase:', error);
-  // Fallback: création d'un objet mock pour éviter les erreurs
-  supabase = {
+
+  // Fallback: objet mock pour éviter les crashs si sb-js ne charge pas
+  sb = {
     from: () => ({
-      select: () => Promise.resolve({data: [], error: null}),
-      insert: () => Promise.resolve({error: null}),
-      update: () => Promise.resolve({error: null}),
-      delete: () => Promise.resolve({error: null})
-    })
+      select: () => Promise.resolve({ data: [], error: null }),
+      insert: () => Promise.resolve({ data: null, error: null }),
+      update: () => Promise.resolve({ data: null, error: null }),
+      delete: () => Promise.resolve({ data: null, error: null })
+    }),
+    auth: {
+      signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Auth indisponible (mock)' } }),
+      signOut: () => Promise.resolve({ error: null }),
+      getSession: () => Promise.resolve({ data: { session: null }, error: null })
+    }
   };
+
+  window.sb = sb;
 }
 let currentUser = null;
 let clients = [];
@@ -42,6 +54,15 @@ let currentHonosClientId = null;
 /* =========================
    UTILITAIRES DATES
    ========================= */
+// ===== ANTI DOUBLE-LOAD (IMPORTANT) =====
+if (window.__GESTFID_APP_LOADED__) {
+  console.warn("⚠️ app.js a été chargé 2 fois — on ignore la 2ème exécution.");
+} else {
+  window.__GESTFID_APP_LOADED__ = true;
+
+  // ✅ TOUT TON CODE EXISTANT DOIT ÊTRE À L’INTÉRIEUR DE CE BLOC
+  // (colle ton app.js complet ici, sans rien changer d’autre)
+}
 
 function toYMDLocal(date) {
   if (!(date instanceof Date)) {
@@ -285,7 +306,7 @@ async function loadClientTypes() {
   try {
     console.log('🔄 Chargement des types de clients...');
     
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('client_types')
       .select('*')
       .order('id');
@@ -376,12 +397,13 @@ async function handleLogin(e) {
     console.log('🔐 Tentative de connexion:', email);
     
     // 1. RECHERCHER L'UTILISATEUR DANS LA TABLE users
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .eq('is_active', true)
-      .single();
+    const { data: user, error } = await sb
+  .from('users')
+  .select('*')
+  .eq('email', email)
+  .eq('is_active', true)
+  .single();
+
     
     if (error) {
       console.error('❌ Erreur Supabase:', error);
@@ -530,7 +552,7 @@ function setupUsersEventListeners() {
 
 async function loadUsersData() {
   try {
-    const { data: users, error } = await supabase
+    const { data: users, error } = await sb
       .from('users')
       .select('*')
       .order('created_at', { ascending: false });
@@ -636,7 +658,7 @@ async function handleAddUser(e) {
   
   try {
     // Vérifier si l'email existe déjà
-    const { data: existingUser } = await supabase
+    const { data: existingUser } = await sb
       .from('users')
       .select('id')
       .eq('email', email)
@@ -650,7 +672,7 @@ async function handleAddUser(e) {
     // Hasher le mot de passe (en production, utiliser bcrypt)
     const passwordHash = btoa(password); // Temporaire - à remplacer par bcrypt
     
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('users')
       .insert([{
         nom_complet: nomComplet,
@@ -697,7 +719,7 @@ async function toggleUserStatus(userId, newStatus) {
   }
   
   try {
-    const { error } = await supabase
+    const { error } = await sb
       .from('users')
       .update({ is_active: newStatus })
       .eq('id', userId);
@@ -729,7 +751,7 @@ async function resetUserPassword(userId) {
   try {
     const passwordHash = btoa(newPassword); // Temporaire - bcrypt en production
     
-    const { error } = await supabase
+    const { error } = await sb
       .from('users')
       .update({ password_hash: passwordHash })
       .eq('id', userId);
@@ -773,7 +795,7 @@ async function logUserActivity(action, page, details = null, clientId = null) {
       ip_address: 'localhost',
     };
 
-    const { error } = await supabase
+    const { error } = await sb
       .from('user_activity_logs')
       .insert([activityData]);
     
@@ -789,7 +811,7 @@ async function logUserActivity(action, page, details = null, clientId = null) {
 
 async function updateLastLogin(userId) {
   try {
-    await supabase
+    await sb
       .from('users')
       .update({ last_login: new Date().toISOString() })
       .eq('id', userId);
@@ -805,7 +827,7 @@ async function loadActivityLogs() {
   
   try {
     // ✅ VERSION SIMPLIFIÉE - Sans jointure clients problématique
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('user_activity_logs')
       .select(`
         *,
@@ -1563,7 +1585,7 @@ function adjustActionMenuPosition(menu, button) {
 async function loadClients(){
   try{
     console.log('Chargement des clients...');
-    const {data, error} = await supabase.from('clients').select('*').order('nom_raison_sociale');
+    const {data, error} = await sb.from('clients').select('*').order('nom_raison_sociale');
     if(error) {
       console.error('Erreur Supabase clients:', error);
       throw error;
@@ -1874,236 +1896,327 @@ function setupEditClientSelect() {
 
 async function handleAddClient() {
   const form = document.getElementById('addClientForm');
-  
-  // VALIDATION DU TYPE DE CLIENT
+  if (!form) return;
+
+  // 1️⃣ TYPE DE CLIENT
   const clientTypeId = document.getElementById('addClientType').value;
   if (!clientTypeId) {
     alert('Veuillez sélectionner un type de client');
+    document.getElementById('addClientType').focus();
     return;
   }
 
-  const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId));
+  const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId, 10));
   if (!clientType) {
     alert('Type de client invalide');
     return;
   }
 
-  // VALIDATION ICE CONDITIONNELLE
-  const iceValue = document.getElementById('addIce').value.trim();
-  if (clientType.ice_obligatoire && !iceValue) {
+  // 2️⃣ ICE : OBLIGATOIRE / FORMAT / DOUBLON
+  const iceInput = document.getElementById('addIce');
+  let iceRaw = (iceInput.value || '').trim();
+  let iceValue = null;
+
+  // ICE obligatoire selon le type
+  if (clientType.ice_obligatoire && !iceRaw) {
     alert('ICE obligatoire pour ce type de client');
-    document.getElementById('addIce').focus();
+    iceInput.focus();
     return;
   }
 
-  // VÉRIFICATION ICE EN DOUBLE (uniquement si ICE renseigné)
-  if (iceValue) {  // Seulement si ICE non vide
+  // Si ICE renseigné → il doit contenir EXACTEMENT 15 chiffres
+  if (iceRaw) {
+    const iceRegex = /^\d{15}$/;
+    if (!iceRegex.test(iceRaw)) {
+      alert('L\'ICE doit contenir exactement 15 chiffres');
+      iceInput.focus();
+      return;
+    }
+    iceValue = iceRaw;
+  }
+
+  // Vérification ICE en doublon uniquement si ICE est renseigné
+  if (iceValue) {
     const iceExists = await checkIceExists(iceValue);
     if (iceExists) {
-        alert('❌ Cet ICE est déjà utilisé par un autre client');
-        document.getElementById('addIce').focus();
-        return;
+      alert('❌ Cet ICE est déjà utilisé par un autre client');
+      iceInput.focus();
+      return;
     }
-    }
+  }
 
+  // 3️⃣ RÉCUPERATION DES AUTRES CHAMPS
   const val = (id) => {
-    const v = document.getElementById(id).value; 
-    return v && v.trim() !== '' ? v.trim() : null;
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const v = el.value ? el.value.trim() : '';
+    return v !== '' ? v : null;
   };
-  
+
   const clientData = {
-    nom_raison_sociale: val('addNom'), 
-    ice: iceValue, // Utiliser la valeur déjà validée
-    client_type_id: parseInt(clientTypeId),
-    date_creation: val('addDateCreation'), 
+    nom_raison_sociale: val('addNom'),
+    ice: iceValue,
+    client_type_id: parseInt(clientTypeId, 10),
+    date_creation: val('addDateCreation'),
     siege_social: val('addSiegeSocial'),
-    ville: val('addVille'), 
+    ville: val('addVille'),
     activite: val('addActivite'),
-    identifiant_fiscal: val('addIdentifiantFiscal'), 
+    identifiant_fiscal: val('addIdentifiantFiscal'),
     taxe_professionnelle: val('addTaxeProfessionnelle'),
-    registre_commerce: val('addRegistreCommerce'), 
+    registre_commerce: val('addRegistreCommerce'),
     cnss: val('addCnss'),
-    rib: val('addRib'), 
+    rib: val('addRib'),
     email: val('addEmail'),
-    nom_gerant: val('addNomGerant'), 
+    nom_gerant: val('addNomGerant'),
     cin_gerant: val('addCinGerant'),
-    adresse_gerant: val('addAdresseGerant'), 
+    adresse_gerant: val('addAdresseGerant'),
     date_naissance: val('addDateNaissance'),
-    contact: val('addContact'), 
+    contact: val('addContact'),
     code_client: val('addCodeClient'),
     statut: 'actif'
   };
-  
-  // VALIDATION NOM OBLIGATOIRE
-  if(!clientData.nom_raison_sociale) {
-    alert('Nom / Raison Sociale obligatoire'); 
-    return; 
+
+  // Nom / raison sociale obligatoire
+  if (!clientData.nom_raison_sociale) {
+    alert('Nom / Raison Sociale obligatoire');
+    document.getElementById('addNom').focus();
+    return;
   }
-  
+
+  // 4️⃣ INSERTION DANS SUPABASE
   try {
-    const {data, error} = await supabase.from('clients').insert([clientData]).select();
-    
-    if(error) {
-      alert('Erreur enregistrement: ' + error.message); 
-      return;
-    }
+    const { data, error } = await sb
+      .from('clients')
+      .insert([clientData])
+      .select();
 
-    // JOURNALISATION AVEC LE TYPE
-    await logUserActivity('creation_client', 'clients', {
-      client_id: data[0].id,
-      client_nom: clientData.nom_raison_sociale,
-      client_type: clientType.nom,
-      ice_obligatoire: clientType.ice_obligatoire
-    });
-    
-    showNotification(`Client ${clientData.nom_raison_sociale} (${clientType.nom}) enregistré avec succès !`, 'success');
-    form.reset();
-    
-    // Réinitialiser l'affichage des champs après succès
-    setTimeout(() => {
-      updateClientFormFields('', 'add');
-    }, 100);
-    
-    // Recharger les clients
-    await loadClients();
-    
-    // Basculer vers l'onglet consultation
-    document.querySelector('#clients .tab[data-tab="consulter"]').click();
-    
-  } catch (error) {
-    console.error('Erreur ajout client:', error);
-    alert('Erreur lors de l\'enregistrement du client: ' + error.message);
-  }
-}
+    if (error) {
+      console.error('Erreur enregistrement client:', error);
 
-async function handleEditClient() {
-  const form = document.getElementById('editClientForm');
-  const clientId = form.getAttribute('data-client-id');
-  
-  if (!clientId) {
-    alert('Aucun client sélectionné');
-    return;
-  }
-  
-  // VALIDATION DU TYPE DE CLIENT
-  const clientTypeId = document.getElementById('editClientType').value;
-  if (!clientTypeId) {
-    alert('Veuillez sélectionner un type de client');
-    return;
-  }
-
-  const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId));
-  if (!clientType) {
-    alert('Type de client invalide');
-    return;
-  }
-
-  // VALIDATION ICE CONDITIONNELLE
-  const iceValue = document.getElementById('editIce').value.trim();
-  if (clientType.ice_obligatoire && !iceValue) {
-    alert('ICE obligatoire pour ce type de client');
-    document.getElementById('editIce').focus();
-    return;
-  }
-
-  const val = (id) => {
-    const v = document.getElementById(id).value; 
-    return v && v.trim() !== '' ? v.trim() : null;
-  };
-  
-  const clientData = {
-    nom_raison_sociale: val('editNom'), 
-    ice: iceValue,
-    client_type_id: parseInt(clientTypeId),
-    date_creation: val('editDateCreation'), 
-    siege_social: val('editSiegeSocial'),
-    ville: val('editVille'), 
-    activite: val('editActivite'),
-    identifiant_fiscal: val('editIdentifiantFiscal'), 
-    taxe_professionnelle: val('editTaxeProfessionnelle'),
-    registre_commerce: val('editRegistreCommerce'), 
-    cnss: val('editCnss'),
-    rib: val('editRib'), 
-    email: val('editEmail'),
-    nom_gerant: val('editNomGerant'), 
-    cin_gerant: val('editCinGerant'),
-    adresse_gerant: val('editAdresseGerant'), 
-    date_naissance: val('editDateNaissance'),
-    contact: val('editContact'), 
-    code_client: val('editCodeClient')
-  };
-  
-  // VALIDATION NOM OBLIGATOIRE
-  if(!clientData.nom_raison_sociale) {
-    alert('Nom / Raison Sociale obligatoire'); 
-    return; 
-  }
-  
-  try {
-    const {error} = await supabase.from('clients').update(clientData).eq('id', clientId);
-    
-    if(error) {
-      // Gestion spécifique de l'erreur ICE en double
-      if (error.code === '23505' && error.message.includes('ice')) {
-        alert('❌ Cet ICE est déjà utilisé par un autre client');
-        document.getElementById('editIce').focus();
+      // Back-end peut encore renvoyer une contrainte d’unicité sur ICE
+      if (error.code === '23505' && error.message && error.message.includes('ice')) {
+        alert('❌ Cet ICE est déjà utilisé par un autre client (contrainte base de données)');
+        iceInput.focus();
       } else {
-        alert('Erreur modification: ' + error.message);
+        alert('Erreur lors de l\'enregistrement du client: ' + error.message);
       }
       return;
     }
 
-    // JOURNALISATION AVEC LE TYPE
+    if (data && data[0]) {
+      const nouveauClient = data[0];
+
+      // Journalisation
+      await logUserActivity('creation_client', 'clients', {
+        client_id: nouveauClient.id,
+        client_nom: clientData.nom_raison_sociale,
+        client_type: clientType.nom,
+        ice_obligatoire: clientType.ice_obligatoire
+      }, nouveauClient.id);
+
+      showNotification(
+        `Client "${clientData.nom_raison_sociale}" (${clientType.nom}) enregistré avec succès !`,
+        'success'
+      );
+
+      // Reset du formulaire
+      form.reset();
+
+      // Réinitialiser l’affichage du formulaire (labels ICE, etc.)
+      setTimeout(() => {
+        updateClientFormFields('', 'add');
+      }, 100);
+
+      // Recharger les clients
+      await loadClients();
+
+      // Revenir à l’onglet "Liste des Clients"
+      const tabListe = document.querySelector('#clients .tab[data-tab="consulter"]');
+      if (tabListe) tabListe.click();
+    }
+
+  } catch (err) {
+    console.error('Erreur inattendue ajout client:', err);
+    alert('Erreur inattendue lors de l\'ajout du client.');
+  }
+}
+async function handleEditClient() {
+  const form = document.getElementById('editClientForm');
+  if (!form) return;
+
+  const clientId = form.getAttribute('data-client-id');
+  if (!clientId) {
+    alert('Aucun client sélectionné pour la modification');
+    return;
+  }
+
+  // 1️⃣ TYPE DE CLIENT
+  const clientTypeId = document.getElementById('editClientType').value;
+  if (!clientTypeId) {
+    alert('Veuillez sélectionner un type de client');
+    document.getElementById('editClientType').focus();
+    return;
+  }
+
+  const clientType = clientTypes.find(ct => ct.id === parseInt(clientTypeId, 10));
+  if (!clientType) {
+    alert('Type de client invalide');
+    return;
+  }
+
+  // 2️⃣ ICE : OBLIGATOIRE / FORMAT / DOUBLON (en excluant ce client)
+  const iceInput = document.getElementById('editIce');
+  let iceRaw = (iceInput.value || '').trim();
+  let iceValue = null;
+
+  // ICE obligatoire selon le type
+  if (clientType.ice_obligatoire && !iceRaw) {
+    alert('ICE obligatoire pour ce type de client');
+    iceInput.focus();
+    return;
+  }
+
+  // Si ICE renseigné → doit contenir EXACTEMENT 15 chiffres
+  if (iceRaw) {
+    const iceRegex = /^\d{15}$/;
+    if (!iceRegex.test(iceRaw)) {
+      alert('L\'ICE doit contenir exactement 15 chiffres');
+      iceInput.focus();
+      return;
+    }
+    iceValue = iceRaw;
+  }
+
+  // Vérification ICE en doublon (on exclut le client courant)
+  if (iceValue) {
+    const iceExists = await checkIceExists(iceValue, clientId);
+    if (iceExists) {
+      alert('❌ Cet ICE est déjà utilisé par un autre client');
+      iceInput.focus();
+      return;
+    }
+  }
+
+  // 3️⃣ AUTRES CHAMPS
+  const val = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const v = el.value ? el.value.trim() : '';
+    return v !== '' ? v : null;
+  };
+
+  const clientData = {
+    nom_raison_sociale: val('editNom'),
+    ice: iceValue,
+    client_type_id: parseInt(clientTypeId, 10),
+    date_creation: val('editDateCreation'),
+    siege_social: val('editSiegeSocial'),
+    ville: val('editVille'),
+    activite: val('editActivite'),
+    identifiant_fiscal: val('editIdentifiantFiscal'),
+    taxe_professionnelle: val('editTaxeProfessionnelle'),
+    registre_commerce: val('editRegistreCommerce'),
+    cnss: val('editCnss'),
+    rib: val('editRib'),
+    email: val('editEmail'),
+    nom_gerant: val('editNomGerant'),
+    cin_gerant: val('editCinGerant'),
+    adresse_gerant: val('editAdresseGerant'),
+    date_naissance: val('editDateNaissance'),
+    contact: val('editContact'),
+    code_client: val('editCodeClient')
+  };
+
+  // Nom / raison sociale obligatoire
+  if (!clientData.nom_raison_sociale) {
+    alert('Nom / Raison Sociale obligatoire');
+    document.getElementById('editNom').focus();
+    return;
+  }
+
+  // 4️⃣ MISE À JOUR SUPABASE
+  try {
+    const { error } = await sb
+      .from('clients')
+      .update(clientData)
+      .eq('id', clientId);
+
+    if (error) {
+      console.error('Erreur modification client:', error);
+
+      if (error.code === '23505' && error.message && error.message.includes('ice')) {
+        alert('❌ Cet ICE est déjà utilisé par un autre client (contrainte base de données)');
+        iceInput.focus();
+      } else {
+        alert('Erreur lors de la modification du client: ' + error.message);
+      }
+      return;
+    }
+
+    // Journalisation
     await logUserActivity('modification_client', 'clients', {
       client_id: clientId,
       client_type: clientType.nom,
       modifications: Object.keys(clientData).filter(key => clientData[key] !== null),
       ice_obligatoire: clientType.ice_obligatoire
-    });
-    
+    }, clientId);
+
     showNotification(`Client modifié avec succès ! (${clientType.nom})`, 'success');
-    
-    // Recharger les clients
+
+    // Recharger la liste des clients
     await loadClients();
-    
-    // Basculer vers l'onglet consultation
-    document.querySelector('#clients .tab[data-tab="consulter"]').click();
-    
-  } catch (error) {
-    console.error('Erreur modification client:', error);
-    alert('Erreur lors de la modification du client: ' + error.message);
+
+    // Revenir à l’onglet "Liste des Clients"
+    const tabListe = document.querySelector('#clients .tab[data-tab="consulter"]');
+    if (tabListe) tabListe.click();
+
+  } catch (err) {
+    console.error('Erreur inattendue modification client:', err);
+    alert('Erreur inattendue lors de la modification du client.');
   }
 }
 
+
 /**
- * Vérifie si un ICE existe déjà (sauf pour les valeurs NULL)
- * @param {string} ice - ICE à vérifier
- * @param {string} excludeClientId - ID du client à exclure (pour l'édition)
- * @returns {boolean} true si l'ICE existe déjà
+ * Vérifie si un ICE existe déjà dans la table clients.
+ * La vérification ne se fait QUE si l’ICE n’est pas vide.
+ * 
+ * @param {string|null} ice - ICE à vérifier
+ * @param {string|null} excludeClientId - ID du client à exclure (édition)
+ * @returns {boolean} true si l’ICE existe déjà
  */
 async function checkIceExists(ice, excludeClientId = null) {
-    try {
-        let query = supabase
-            .from('clients')
-            .select('id, nom_raison_sociale, ice')
-            .eq('ice', ice)
-            .not('ice', 'is', null);
+  ice = (ice || "").toString().trim();
 
-        if (excludeClientId) {
-            query = query.neq('id', excludeClientId);
-        }
+  if (!ice) return false;
 
-        const { data, error } = await query;
-        
-        if (error) throw error;
-        
-        return data && data.length > 0;
-        
-    } catch (error) {
-        console.error('Erreur vérification ICE:', error);
-        return false;
+  try {
+    let query = sb
+      .from('clients')
+      .select('id')
+      .eq('ice', ice);
+
+    if (excludeClientId) {
+      query = query.neq('id', excludeClientId);
     }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("❌ Erreur Supabase checkIceExists:", error);
+      return false;
+    }
+
+    return Array.isArray(data) && data.length > 0;
+
+  } catch (error) {
+    console.error("❌ Exception checkIceExists:", error);
+    return false;
+  }
 }
+
+
+
 function handleViewClientSelection(clientId) {
   const viewFormContainer = document.getElementById('viewFormContainer');
   const viewPlaceholder = document.getElementById('viewPlaceholder');
@@ -2360,7 +2473,7 @@ async function loadClientsArchives() {
   try {
     console.log('📁 Chargement des clients archivés...');
     
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('clients_archives')
       .select('*')
       .order('archived_at', { ascending: false });
@@ -2423,7 +2536,7 @@ function displayClientsArchives(archives) {
 
 async function archiverClient(clientId, raison) {
   try {
-    const { error } = await supabase.rpc('archiver_client', {
+    const { error } = await sb.rpc('archiver_client', {
       client_id: clientId,
       utilisateur_id: currentUser.id,
       raison: raison
@@ -2445,7 +2558,7 @@ async function archiverClient(clientId, raison) {
 
 async function restaurerClient(archiveId) {
   try {
-    const { error } = await supabase.rpc('restaurer_client', {
+    const { error } = await sb.rpc('restaurer_client', {
       archive_id: archiveId,
       utilisateur_id: currentUser.id
     });
@@ -2465,7 +2578,7 @@ async function supprimerClientDefinitif(archiveId) {
   }
   
   try {
-    const { error } = await supabase.rpc('supprimer_client_definitif', {
+    const { error } = await sb.rpc('supprimer_client_definitif', {
       archive_id: archiveId,
       utilisateur_id: currentUser.id
     });
@@ -2829,7 +2942,7 @@ function creerContenuFicheClient(client) {
    ========================= */
 async function loadDeclarationTypes(){
   try{
-    const {data, error} = await supabase.from('declaration_types').select('*').order('type_declaration, mois_reference, trimestre_reference');
+    const {data, error} = await sb.from('declaration_types').select('*').order('type_declaration, mois_reference, trimestre_reference');
     if(error) throw error; 
     declarationTypes = data || [];
   } catch(e) {
@@ -2839,7 +2952,7 @@ async function loadDeclarationTypes(){
 
 async function loadClientDeclarations(){
   try{
-    const {data, error} = await supabase.from('client_declarations').select('*');
+    const {data, error} = await sb.from('client_declarations').select('*');
     if(error) throw error; 
     clientDeclarations = data || [];
   } catch(e) {
@@ -2849,7 +2962,7 @@ async function loadClientDeclarations(){
 
 async function loadEcheances(){
   try{
-    const {data, error} = await supabase.from('echeances').select(`*, clients(nom_raison_sociale), declaration_types(nom_template,type_declaration)`).order('date_fin', {ascending:false});
+    const {data, error} = await sb.from('echeances').select(`*, clients(nom_raison_sociale), declaration_types(nom_template,type_declaration)`).order('date_fin', {ascending:false});
     if(error) throw error; 
     echeances = data || [];
   } catch(e) {
@@ -2895,7 +3008,7 @@ async function loadEcheancesTable(){
   
   tbody.innerHTML = '<tr><td colspan="5" class="no-data">Chargement...</td></tr>';
   
-  let q = supabase.from('echeances')
+  let q = sb.from('echeances')
     .select('*, clients(nom_raison_sociale), declaration_types(nom_template,type_declaration)')
     .eq('annee_comptable', annee)
     .order('date_fin', {ascending:false});
@@ -3785,12 +3898,12 @@ async function handleAffectation() {
             }
 
             // Suppression en cascade
-            await supabase.from('client_declarations')
+            await sb.from('client_declarations')
                 .delete()
                 .eq('client_id', clientId)
                 .eq('annee_comptable', annee);
 
-            await supabase.from('echeances')
+            await sb.from('echeances')
                 .delete()
                 .eq('client_id', clientId)
                 .eq('annee_comptable', annee);
@@ -3833,7 +3946,7 @@ async function handleAffectation() {
             }
 
             // SUPPRESSION COMPLÈTE
-            await supabase.from('client_declarations')
+            await sb.from('client_declarations')
                 .delete()
                 .eq('client_id', clientId)
                 .eq('annee_comptable', annee);
@@ -3862,7 +3975,7 @@ async function handleAffectation() {
             }
             
             if (declarationsAInserer.length > 0) {
-                const { error } = await supabase
+                const { error } = await sb
                     .from('client_declarations')
                     .insert(declarationsAInserer);
                 
@@ -3918,9 +4031,9 @@ async function handleAffectation() {
 }
 
 async function genererEcheancesAutomatiques(clientId, annee){
-  await supabase.from('echeances').delete().eq('client_id', clientId).eq('annee_comptable', annee);
+  await sb.from('echeances').delete().eq('client_id', clientId).eq('annee_comptable', annee);
   
-  const {data: aff} = await supabase.from('client_declarations').select('*, declaration_types(*)').eq('client_id', clientId).eq('annee_comptable', annee);
+  const {data: aff} = await sb.from('client_declarations').select('*, declaration_types(*)').eq('client_id', clientId).eq('annee_comptable', annee);
   
   for(const a of (aff || [])) {
     const t = a.declaration_types;
@@ -3932,7 +4045,7 @@ async function genererEcheancesAutomatiques(clientId, annee){
       periode = `${annee}-T${t.trimestre_reference}`;
     }
     
-    await supabase.from('echeances').insert({
+    await sb.from('echeances').insert({
       client_id: clientId, 
       declaration_type_id: a.declaration_type_id, 
       annee_comptable: parseInt(annee),
@@ -4123,7 +4236,7 @@ function getDeclarationsAnneePrecedente(clientId, exercice) {
    ========================= */
 
 async function mettreAJourStatutEcheance(id, statut){
-  await supabase.from('echeances').update({
+  await sb.from('echeances').update({
     statut_manuel: statut, 
     date_depot: statut ? toYMDLocal(new Date()) : null
   }).eq('id', id);
@@ -4800,7 +4913,7 @@ async function handleSaveCodes(e) {
     }
     
     // CORRECTION : Toujours faire un UPDATE sur la table clients
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('clients')
       .update(formData)
       .eq('id', clientId)
@@ -5031,7 +5144,7 @@ async function loadHonorairesFromSupabase() {
     console.log('Chargement des honoraires depuis Supabase...');
     
     // Charger les facturations
-    const { data: facturations, error: errorFactu } = await supabase
+    const { data: facturations, error: errorFactu } = await sb
       .from('honoraires_factures')
       .select('*')
       .order('date', { ascending: false });
@@ -5044,7 +5157,7 @@ async function loadHonorairesFromSupabase() {
     }
     
     // Charger les paiements
-    const { data: paiements, error: errorPay } = await supabase
+    const { data: paiements, error: errorPay } = await sb
       .from('honoraires_paiements')
       .select('*')
       .order('date', { ascending: false });
@@ -5272,7 +5385,7 @@ function updateSituationTables(factu, payClient) {
 
 async function addFacturation(facturationData) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('honoraires_factures')
       .insert([facturationData])
       .select();
@@ -5300,7 +5413,7 @@ async function addFacturation(facturationData) {
 
 async function addPaiement(paiementData) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('honoraires_paiements')
       .insert([paiementData])
       .select();
@@ -5332,7 +5445,7 @@ async function updateFacturation(id, updates) {
     const facturationAvant = honosFactu.find(item => item.id === id);
     const client = clients.find(c => c.id === facturationAvant?.client_id);
     
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('honoraires_factures')
       .update(updates)
       .eq('id', id)
@@ -5387,7 +5500,7 @@ async function updatePaiement(id, updates) {
     const paiementAvant = honosPay.find(item => item.id === id);
     const client = clients.find(c => c.id === paiementAvant?.client_id);
     
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('honoraires_paiements')
       .update(updates)
       .eq('id', id)
@@ -5440,7 +5553,7 @@ async function updatePaiement(id, updates) {
 }
 async function deleteFacturation(id) {
   try {
-    const { error } = await supabase
+    const { error } = await sb
       .from('honoraires_factures')
       .delete()
       .eq('id', id);
@@ -5458,7 +5571,7 @@ async function deleteFacturation(id) {
 
 async function deletePaiement(id) {
   try {
-    const { error } = await supabase
+    const { error } = await sb
       .from('honoraires_paiements')
       .delete()
       .eq('id', id);
@@ -5680,7 +5793,7 @@ function updateExistingRow(row, item, createRowFn) {
 
     /* 1) CLIENTS ACTIFS */
     console.log('🔍 Récupération des clients actifs...');
-    const { data: clientsData, error: clientsError } = await supabase
+    const { data: clientsData, error: clientsError } = await sb
       .from('clients')
       .select('id, nom_raison_sociale, statut');
 
@@ -5700,7 +5813,7 @@ function updateExistingRow(row, item, createRowFn) {
 
     // ✅ RÉCUPÉRER LES CLIENTS AVEC DÉCLARATIONS
     const anneeEnCours = new Date().getFullYear();
-    const { data: clientsAvecDeclarations, error: declError } = await supabase
+    const { data: clientsAvecDeclarations, error: declError } = await sb
       .from('client_declarations')
       .select('client_id')
       .eq('annee_comptable', anneeEnCours);
@@ -5710,14 +5823,14 @@ function updateExistingRow(row, item, createRowFn) {
     );
 
     // Échéances dépassées ET statut NULL
-    const { data: tardivesNull, error: e1 } = await supabase
+    const { data: tardivesNull, error: e1 } = await sb
       .from('echeances')
       .select('client_id')
       .lt('date_fin', aujourdhui)
       .is('statut_manuel', null);
 
     // Échéances dépassées ET statut NOT IN ('deposee','payee')
-    const { data: tardivesNotOk, error: e2 } = await supabase
+    const { data: tardivesNotOk, error: e2 } = await sb
       .from('echeances')
       .select('client_id')
       .lt('date_fin', aujourdhui)
@@ -5750,7 +5863,7 @@ function updateExistingRow(row, item, createRowFn) {
 
     /* 4) DÉCLARATIONS DU MOIS */
     console.log('🔍 Récupération des déclarations du mois...');
-    const { data: declarationsMois, error: declMoisError } = await supabase
+    const { data: declarationsMois, error: declMoisError } = await sb
       .from('echeances')
       .select('id, statut_manuel')
       .lte('date_debut', finMoisStr)
@@ -5776,7 +5889,7 @@ function updateExistingRow(row, item, createRowFn) {
     const debutAnnee = new Date(maintenant.getFullYear(), 0, 1);
     const debutAnneeStr = toYMDLocal(debutAnnee);
 
-    const { data: toutesDeclarationsAnnee, error: declAnneeError } = await supabase
+    const { data: toutesDeclarationsAnnee, error: declAnneeError } = await sb
       .from('echeances')
       .select('id, statut_manuel, date_fin, nom_echeance')
       .gte('date_fin', debutAnneeStr)
